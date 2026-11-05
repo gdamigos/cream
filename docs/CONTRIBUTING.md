@@ -58,7 +58,7 @@ docs/                     guides and project policies
 .github/                  CI, release workflows and templates
 ```
 
-[`CLAUDE.md`](../CLAUDE.md) at the repo root describes the architecture and the rules the code has to follow. Read it before a larger change. [How it works](HOW_IT_WORKS.md) lists every file each adapter touches.
+The CLI and the TUI do everything through `internal/core`, and neither calls an adapter directly. [How it works](HOW_IT_WORKS.md) lists every file each adapter touches.
 
 ## Making changes
 
@@ -82,6 +82,11 @@ Implement `adapter.Adapter` in `internal/adapters/<tool>.go`, add it to `adapter
 
 ## Releasing
 
-Maintainers bump [`VERSION`](../VERSION) and merge to `main`, and the release workflow does the rest. Never tag by hand. One-time setup is in [GITHUB_SETUP.md](GITHUB_SETUP.md).
+Maintainers bump [`VERSION`](../VERSION) and merge to `main`, and the release workflow tests, tags and publishes it. Never tag by hand.
+
+- A suffix like `0.2.0-rc.1` makes a GitHub pre-release, which is never marked latest. Use it to test the release pipeline.
+- Only the newest patch of each `major.minor` stays a normal release. Older ones are renamed `[ARCHIVED] vX.Y.Z` and marked as pre-releases, and their downloads stay.
+- If a release fails, its tag is deleted. Fix the problem and use **Actions, Release, Run workflow**. Never reuse a published version number.
+- Release notes are grouped by PR labels, which are set from the conventional PR title.
 
 Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).

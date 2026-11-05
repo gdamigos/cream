@@ -1,0 +1,74 @@
+name: Issues to TODO
+
+# adds issues labelled bug, feature or enhancement to docs/TODO.md through a PR assigned to the repo owner
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-todo
+  cancel-in-progress: false
+
+jobs:
+  add:
+    if: contains(fromJSON('["bug","feature","enhancement"]'), github.event.label.name)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # a PR opened with GITHUB_TOKEN starts no checks, so a personal token is used when it exists
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          token: ${{ secrets.TODO_PR_TOKEN || github.token }}
+      - name: Add the issue and open a PR
+        env:
+          GH_TOKEN: ${{ secrets.TODO_PR_TOKEN || github.token }}
+          NUMBER: ${{ github.event.issue.number }}
+          TITLE: ${{ github.event.issue.title }}
+          AUTHOR: ${{ github.event.issue.user.login }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          LABEL: ${{ github.event.label.name }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          export LC_ALL=C.UTF-8 # so the 60 character cut counts characters, not bytes
+          if [ "$LABEL" = "bug" ]; then
+            heading="## Bugs"; kind="bug"
+          else
+            heading="## Improvements"; kind="improvement"
+          fi
+          # one branch per issue, so a second label on the same issue does nothing
+          branch="todo/$NUMBER"
+          if grep -qF "[#$NUMBER](" docs/TODO.md; then
+            echo "#$NUMBER is already in TODO.md"; exit 0
+          fi
+          if git ls-remote --exit-code --heads origin "$branch" > /dev/null; then
+            echo "$branch already exists"; exit 0
+          fi
+          grep -qx "$heading" docs/TODO.md || { echo "::error::docs/TODO.md has no '$heading' section"; exit 1; }
+
+          # the title is untrusted, keep it one plain line without markdown or html, cut at 60 characters
+          title="$(printf '%s' "$TITLE" | tr -d '\r\n' | sed 's/[][<>`\\|*_]//g')"
+          if [ "${#title}" -gt 60 ]; then
+            title="${title:0:57}..."
+          fi
+          user="$(printf '%s' "${AUTHOR%\[bot\]}" | tr -cd 'A-Za-z0-9-')"
+          # renders as "#N - title by @user", both linked
+          line="- [ ] [#$NUMBER]($ISSUE_URL) - $title by [@$user](https://github.com/$user)"
+          # new items go first, right under the heading and its blank line
+          awk -v heading="$heading" -v line="$line" '{ print } $0 == heading { getline; print; print line }' docs/TODO.md > todo.tmp
+          mv todo.tmp docs/TODO.md
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git commit -am "docs: add $kind #$NUMBER to TODO"
+          git push origin "$branch"
+          gh pr create --head "$branch" --base main \
+            --title "docs: add $kind #$NUMBER to TODO" \
+            --body "Adds #$NUMBER by @$user to the ${heading#\#\# } list in docs/TODO.md. Merge to accept it, close to leave it out." \
+            --assignee "$OWNER"
