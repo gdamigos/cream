@@ -331,9 +331,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case frameMsg:
 		m.frame++
-		if m.intro && m.tFrame() > 1.3 {
-			m.intro = false
-		}
 		now := time.Now()
 		kept := m.toasts[:0]
 		for _, t := range m.toasts {
@@ -445,7 +442,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmd, tea.EnableMouseCellMotion)
 
 	case tea.MouseMsg:
-		if m.modal != modalNone || m.intro {
+		if m.intro {
+			if msg.Action == tea.MouseActionPress {
+				m.intro = false
+			}
+			return m, nil
+		}
+		if m.modal != modalNone {
 			return m, nil
 		}
 		switch msg.Button {

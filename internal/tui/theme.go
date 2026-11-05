@@ -91,7 +91,7 @@ func paintGradient(lines []string, phase, reveal float64) string {
 	if width == 0 {
 		return ""
 	}
-	front := reveal * float64(width+len(lines))
+	front := reveal * float64(width+len(lines)) * 1.15
 	var b strings.Builder
 	for y, l := range lines {
 		runes := []rune(l)
