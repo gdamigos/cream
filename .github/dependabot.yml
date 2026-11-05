@@ -24,7 +24,14 @@ updates:
     commit-message:
       prefix: "chore(deps)"
     groups:
-      actions:
+      release-actions:
+        patterns:
+          - "goreleaser/goreleaser-action"
+          - "sigstore/cosign-installer"
+          - "anchore/sbom-action*"
+          - "docker/*"
+          - "actions/attest-build-provenance"
+      ci-actions:
         patterns: ["*"]
 
   - package-ecosystem: docker
