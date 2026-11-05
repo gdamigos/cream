@@ -45,20 +45,22 @@ On Windows PowerShell use `$env:CREAM_HOME="$env:TEMP\cream-try"` instead.
 
 ```text
 main.go                   entry point, embeds VERSION
-internal/cli              commands
-internal/tui              terminal UI
-internal/core             import, switch and rollback, restore, sessions, rules
-internal/adapters         one file per tool: Claude Code, Codex, GitHub, GitLab, git identity
+internal/cli              one file per command group: profile, switch (import, use, run), lock, doctor, status, rules, backups, version
+internal/tui              terminal UI: model, keys, actions, forms, run, update_window, view, modals, tagline, theme
+internal/core             manager (import, switch, rollback, restore, sessions, rules), lock, doctor
+internal/adapters         one file per tool: claude, codex, github, gitlab, gitid
 internal/adapter          what every adapter has to implement
 internal/vault            OS keyring and the encrypted file vault
 internal/backup           encrypted backups
-internal/update           the update check
+internal/update           the update check and install detection
 internal/testutil         fake runner and temporary environment for tests
 docs/                     guides and project policies
-.github/                  CI, release workflows and templates
+.github/                  CI, release workflows, scripts and templates
 ```
 
 The CLI and the TUI do everything through `internal/core`, and neither calls an adapter directly. [How it works](HOW_IT_WORKS.md) lists every file each adapter touches.
+
+Tests live next to the code they test, as Go expects: `claude.go` is tested in `claude_test.go`. Helpers shared by a package's tests go in its `helpers_test.go`, and fixture files (configs as the real tools write them) go in its `testdata/` folder.
 
 ## Making changes
 

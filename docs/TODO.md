@@ -28,3 +28,4 @@ Ideas and known problems in no particular ((execution)) order.
 - [ ] glab tokens stored in the OS keyring instead of `config.yml` aren't supported
 - [ ] An empty update check result (before the first release exists) is cached for 24 hours
 - [ ] `x/crypto` is pinned to a fix commit instead of a tagged release
+- [ ] some times claude defaults to API billing after switch (instead of Pro/Max/Team)
