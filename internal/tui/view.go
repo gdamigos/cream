@@ -126,7 +126,8 @@ func (m Model) viewHeader() string {
 		badges = append(badges, sBadgeUpd.Render("↑ "+m.upd.Latest))
 	}
 	leftPart := lipgloss.JoinHorizontal(lipgloss.Center, logo, "   ", info)
-	if lipgloss.Width(leftPart)+len(badges)*12+taglineWidth()+6 < m.w {
+	// in dry run the badge is the message, no splash text next to it
+	if !m.dryRun && lipgloss.Width(leftPart)+len(badges)*12+taglineWidth()+6 < m.w {
 		badges = append([]string{renderTagline(m.tagSeed, t)}, badges...)
 	}
 	right := strings.Join(badges, " ")
@@ -141,34 +142,37 @@ func (m Model) viewHeader() string {
 	return lipgloss.NewStyle().Padding(1, 1, 0, 1).Render(row)
 }
 
+// splash text
 var taglines = []string{
-	"zero telemetry",
 	"one switch, every login",
-	"secrets stay in your keyring",
-	"backed up before every change",
-	"rolls back if anything fails",
-	"work and personal, never mixed",
-	"commits with the right email",
-	"no daemons, no open ports",
-	"dry run anything",
-	"undo is one key away",
-	"no admin rights needed",
-	"your logins never leave this machine",
 	"log in once, switch forever",
 	"no more logout, login, repeat",
-	"two accounts, side by side",
-	"one tool or all of them",
-	"encrypted at rest",
-	"nothing phones home",
-	"no cloud, no sync, no account",
-	"plain text never touches disk",
-	"every change shown before it happens",
-	"open source, MIT licensed",
-	"tokens stay out of your history",
-	"git identity that follows you",
-	"claude, codex, gh, glab and git",
-	"made for people with two jobs",
-	"switch faster than you can alt-tab",
+	"work and personal, never mixed",
+	"commits with the right email",
+	"undo is one key away",
+	"zero telemetry",
+	"now with 100% more cream!",
+	"not a dairy product",
+	"lactose free!",
+	"whipped, not stirred",
+	"the cream always rises",
+	"cream rules everything around me",
+	"spilled milk? cream restore",
+	"not affiliated with ice cream",
+	"best served chilled",
+	"works on my machine!",
+	"git blame says it wasn't you",
+	"it's not a bug, it's a profile",
+	"alt-tab, but for logins",
+	"also try cream run!",
+	"your other account misses you",
+	"one more profile won't hurt",
+	"press ? for help, we won't judge",
+	"tabs vs spaces?",
+	"handcrafted in a terminal",
+	"powered by coffee and Go",
+	"10/10 would switch again",
+	"less logging in, more shipping",
 	"the cream of credential managers",
 }
 
@@ -388,11 +392,18 @@ func (m Model) statusHints(sel *config.Profile, focused bool) []string {
 	dot := sKeyDesc.Render(" · ")
 	if focused && len(m.status) > 0 {
 		s := m.status[m.rightCursor[tabStatus]]
-		return []string{
+		out := []string{
 			key("enter", "switch only "+s.Name+" to ") + sBold.Render(sel.Name),
 			key("i", "save the current "+s.Name+" login into ") + sBold.Render(sel.Name),
-			key("←", "back to switching everything"),
 		}
+		if sel.Accounts[s.ID] != nil {
+			out = append(out, key("x", "forget the "+s.Name+" account saved in ")+sBold.Render(sel.Name))
+		}
+		out = append(out, key("←", "back to switching everything"))
+		if s.Live.LoggedIn && len(m.mgr.Owners(s.ID, s.Live.Account)) == 0 {
+			out = append(out, sWarn.Render("! ")+sDim.Render(s.Live.Account+" is not saved in any profile yet"))
+		}
+		return out
 	}
 	var out []string
 	if sel.Name == m.mgr.Cfg.Active {
@@ -568,13 +579,13 @@ func (m Model) helpLine() string {
 	var items []kv
 	switch {
 	case m.focusRight && m.tab == tabStatus:
-		items = []kv{{"↑↓", "tool"}, {"enter", "switch this tool"}, {"i", "import this tool"}, {"←", "profiles"}, {"tab", "view"}}
+		items = []kv{{"↑↓", "tool"}, {"enter", "switch this tool"}, {"i", "import this tool"}, {"x", "forget"}, {"←", "profiles"}, {"tab", "view"}}
 	case m.focusRight && m.tab == tabRules:
 		items = []kv{{"↑↓", "select"}, {"x", "remove"}, {"a", "add"}, {"←", "profiles"}, {"tab", "view"}}
 	case m.focusRight && m.tab == tabBackups:
 		items = []kv{{"↑↓", "select"}, {"enter", "restore"}, {"←", "profiles"}, {"tab", "view"}}
 	default:
-		items = []kv{{"enter", "switch"}, {"r", "run"}, {"i", "import"}, {"n", "new"}, {"e", "edit"}, {"a", "rule"}, {"u", "undo"}, {"D", "dry-run"}, {"tab", "view"}}
+		items = []kv{{"enter", "switch"}, {"r", "run"}, {"i", "import"}, {"n", "new"}, {"e", "edit"}, {"x", "delete"}, {"a", "rule"}, {"u", "undo"}, {"D", "dry-run"}, {"tab", "view"}}
 	}
 	sep := sFaint.Render("  ·  ")
 	render := func(it kv) string { return sKey.Render(it.k) + " " + sKeyDesc.Render(it.v) }
@@ -647,12 +658,13 @@ func (m Model) viewHelp() string {
 		{"r", "run one tool as the profile, this terminal only"},
 		{"i", "import the currently logged-in accounts"},
 		{"n / e / x", "new / edit / delete profile"},
+		{"x on a tool", "forget the account the profile saved for it"},
 		{"a", "add a git identity rule (folder or remote host)"},
 		{"u", "undo: restore the latest backup"},
 		{"tab  1-3", "status · rules · backups"},
 		{"→ / ←", "move between profiles and the list on the right"},
 		{"D", "toggle dry-run (preview changes only)"},
-		{"R", "refresh tool state"},
+		{"R", "refresh now (also automatic every few seconds)"},
 		{"q", "quit"},
 	}
 	lines := []string{sAccent.Render("Keys"), ""}

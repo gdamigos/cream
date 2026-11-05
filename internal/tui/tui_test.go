@@ -138,7 +138,7 @@ func TestIntroThenMain(t *testing.T) {
 
 func TestStatusAndImportFlow(t *testing.T) {
 	md, mgr := newModel(t)
-	md = send(t, md, tea.WindowSizeMsg{Width: 120, Height: 40}, statusMsg(mgr.StatusFor(ctxBG(), nil)))
+	md = send(t, md, tea.WindowSizeMsg{Width: 120, Height: 40}, statusMsg{list: mgr.StatusFor(ctxBG(), nil)})
 	v := plain(md)
 	if !strings.Contains(v, "me@work.com") || !strings.Contains(v, "personal") {
 		t.Fatalf("status view:\n%s", v)
@@ -194,7 +194,7 @@ func TestSwitchOneTool(t *testing.T) {
 	if _, err := mgr.Import(ctxBG(), "personal", []string{"claude"}, false, nil); err != nil {
 		t.Fatal(err)
 	}
-	md = send(t, md, tea.WindowSizeMsg{Width: 120, Height: 40}, statusMsg(mgr.StatusFor(ctxBG(), nil)))
+	md = send(t, md, tea.WindowSizeMsg{Width: 120, Height: 40}, statusMsg{list: mgr.StatusFor(ctxBG(), nil)})
 
 	// select work, focus the status list, claude is the first row
 	md = send(t, md, key("down"), key("l"))
@@ -218,6 +218,53 @@ func TestSwitchOneTool(t *testing.T) {
 	md = send(t, md, key("i"))
 	if md.pend == nil || len(md.pend.only) != 1 || !strings.Contains(md.pend.title, "Claude Code") {
 		t.Fatalf("import should be for one tool, got %+v", md.pend)
+	}
+}
+
+// cream open in one terminal, claude logged out and in as another account in a second one
+func TestLoginInOtherTerminal(t *testing.T) {
+	md, mgr := newModel(t)
+	home := mgr.Paths.Home
+	if _, err := mgr.Import(ctxBG(), "work", nil, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	md = send(t, md, tea.WindowSizeMsg{Width: 120, Height: 40}, statusMsg{list: mgr.StatusFor(ctxBG(), nil)})
+	md.statusLoads = 0
+
+	// leaving the terminal saves work's refreshed token before it can be logged out
+	os.WriteFile(filepath.Join(home, ".claude", ".credentials.json"), []byte(`{"t":"WORK2"}`), 0o600)
+	md = send(t, md, tea.BlurMsg{})
+	if b, _ := mgr.Env.Vault.Get(vault.ProfileKey("work", "claude")); !strings.Contains(string(b), "WORK2") {
+		t.Fatal("blur did not sync the active profile")
+	}
+
+	os.WriteFile(filepath.Join(home, ".claude", ".credentials.json"), []byte(`{"t":"HOME"}`), 0o600)
+	os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"oauthAccount":{"emailAddress":"me@home.org"}}`), 0o600)
+	md = send(t, md, tea.FocusMsg{})
+	if !strings.Contains(plain(md), "me@home.org") {
+		t.Fatalf("new login not shown:\n%s", plain(md))
+	}
+	if len(md.toasts) == 0 || !strings.Contains(md.toasts[len(md.toasts)-1].text, "not saved yet") {
+		t.Fatalf("expected a not saved toast, got %+v", md.toasts)
+	}
+
+	// personal is first, focus claude and import just that tool
+	md = send(t, md, key("l"), key("i"), key("y"))
+	if a := mgr.Cfg.Profiles["personal"].Accounts["claude"]; a == nil || a.Label != "me@home.org" {
+		t.Fatalf("personal claude = %+v", a)
+	}
+	if b, _ := mgr.Env.Vault.Get(vault.ProfileKey("work", "claude")); !strings.Contains(string(b), "WORK2") {
+		t.Fatal("work token was touched")
+	}
+
+	// x on the tool forgets it again, the profile stays
+	md = send(t, md, key("enter"), key("x"))
+	if md.modal != modalConfirm || md.pend.kind != actForget {
+		t.Fatalf("expected forget confirm, got %+v", md.pend)
+	}
+	send(t, md, key("y"))
+	if mgr.Cfg.Profiles["personal"] == nil || mgr.Cfg.Profiles["personal"].Accounts["claude"] != nil {
+		t.Fatal("forget did not drop only the claude account")
 	}
 }
 

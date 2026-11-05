@@ -17,7 +17,7 @@ func TestSnapshot(t *testing.T) {
 	}
 	md, mgr := newModel(t)
 	mgr.Import(ctxBG(), "work", nil, false, nil)
-	md = send(t, md, tea.WindowSizeMsg{Width: 110, Height: 32}, statusMsg(mgr.StatusFor(ctxBG(), nil)))
+	md = send(t, md, tea.WindowSizeMsg{Width: 110, Height: 32}, statusMsg{list: mgr.StatusFor(ctxBG(), nil)})
 	frames := map[string]string{}
 	frames["main"] = plain(md)
 	md2 := send(t, md, key("down"))

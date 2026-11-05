@@ -32,7 +32,7 @@ type Options struct {
 }
 
 func Run(m *core.Manager, o Options) error {
-	p := tea.NewProgram(New(m, o), tea.WithAltScreen(), tea.WithMouseCellMotion())
+	p := tea.NewProgram(New(m, o), tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithReportFocus())
 	_, err := p.Run()
 	return err
 }
@@ -67,7 +67,11 @@ const (
 	actDelete
 	actRestore
 	actDeleteRule
+	actForget
 )
+
+// how often tool state is re-read so logins made in other terminals show up
+const pollEvery = 3 * time.Second
 
 type pending struct {
 	kind     actionKind
@@ -113,7 +117,11 @@ type runChoice struct {
 }
 
 type frameMsg time.Time
-type statusMsg []core.AdapterStatus
+type pollMsg time.Time
+type statusMsg struct {
+	list  []core.AdapterStatus
+	watch bool // from a background refresh, so changes came from outside cream
+}
 type backupsMsg []backup.Info
 type updateMsg struct{ res *update.Result }
 type eventMsg core.Event
@@ -149,6 +157,7 @@ type Model struct {
 	rightCursor  [tabCount]int
 	status       []core.AdapterStatus
 	statusLoaded bool
+	statusLoads  int // status reads in flight, config is only reloaded when zero
 	backups      []backup.Info
 
 	busy      bool
@@ -187,6 +196,8 @@ func New(m *core.Manager, o Options) Model {
 		spin:    sp,
 		bar:     bar,
 		tagSeed: rand.Uint64(),
+		// Init starts the first status read on a copy
+		statusLoads: 1,
 	}
 	for i, n := range m.Cfg.Names() {
 		if n == m.Cfg.Active {
@@ -197,7 +208,7 @@ func New(m *core.Manager, o Options) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{tick(), m.spin.Tick, m.loadStatus(), m.loadBackups()}
+	cmds := []tea.Cmd{tick(), poll(), m.spin.Tick, m.loadStatus(), m.loadBackups()}
 	if m.opts.UpdateCheck && m.opts.Checker != nil {
 		cmds = append(cmds, checkUpdate(m.opts.Checker))
 	}
@@ -208,12 +219,50 @@ func tick() tea.Cmd {
 	return tea.Tick(time.Second/30, func(t time.Time) tea.Msg { return frameMsg(t) })
 }
 
-func (m Model) loadStatus() tea.Cmd {
+func poll() tea.Cmd {
+	return tea.Tick(pollEvery, func(t time.Time) tea.Msg { return pollMsg(t) })
+}
+
+// re-reads config.toml if another cream changed it, then the live tool state
+func (m Model) refresh() (Model, tea.Cmd) {
+	if m.busy || m.modal != modalNone || m.statusLoads > 0 {
+		return m, nil
+	}
+	if _, err := m.mgr.ReloadIfChanged(); err != nil {
+		m.toast(2, "%s", firstLine(err.Error()))
+	}
+	if n := len(m.names()); m.cursor >= n {
+		m.cursor = max(0, n-1)
+	}
+	m.statusLoads++
+	mgr := m.mgr
+	return m, func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return statusMsg{list: mgr.StatusFor(ctx, nil), watch: true}
+	}
+}
+
+// saves refreshed tokens of the active profile while nothing else runs
+func (m Model) syncActive() Model {
+	if m.busy || m.dryRun {
+		return m
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if _, err := m.mgr.SyncActive(ctx); err != nil {
+		m.toast(2, "%s", firstLine(err.Error()))
+	}
+	return m
+}
+
+func (m *Model) loadStatus() tea.Cmd {
+	m.statusLoads++
 	mgr := m.mgr
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		return statusMsg(mgr.StatusFor(ctx, nil))
+		return statusMsg{list: mgr.StatusFor(ctx, nil)}
 	}
 }
 
@@ -305,8 +354,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.bar = pm.(progress.Model)
 		return m, cmd
 
+	case pollMsg:
+		m, cmd := m.refresh()
+		return m, tea.Batch(cmd, poll())
+
+	case tea.FocusMsg:
+		return m.refresh()
+
+	case tea.BlurMsg:
+		// the user may log out of a tool in the other terminal, so save refreshed tokens now
+		if m.modal == modalNone {
+			m = m.syncActive()
+		}
+		return m, nil
+
 	case statusMsg:
-		m.status, m.statusLoaded = msg, true
+		m.statusLoads = max(0, m.statusLoads-1)
+		if m.statusLoaded && msg.watch {
+			m.noticeLogins(msg.list)
+		}
+		m.status, m.statusLoaded = msg.list, true
 		if m.rightCursor[tabStatus] >= len(m.status) {
 			m.rightCursor[tabStatus] = max(0, len(m.status)-1)
 		}
@@ -374,7 +441,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.toast(1, "%s session ended", msg.label)
 		}
-		return m, tea.Batch(m.loadStatus(), tea.EnableMouseCellMotion)
+		cmd := m.loadStatus()
+		return m, tea.Batch(cmd, tea.EnableMouseCellMotion)
 
 	case tea.MouseMsg:
 		if m.modal != modalNone || m.intro {
@@ -403,6 +471,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateForm(msg)
 	}
 	return m, nil
+}
+
+// toasts logins that changed since the last read, e.g. a /login in another terminal
+func (m *Model) noticeLogins(next []core.AdapterStatus) {
+	for _, s := range next {
+		if !s.Live.LoggedIn {
+			continue
+		}
+		i := slices.IndexFunc(m.status, func(o core.AdapterStatus) bool { return o.ID == s.ID })
+		if i >= 0 && m.status[i].Live.LoggedIn && m.status[i].Live.Account == s.Live.Account {
+			continue
+		}
+		if owners := m.mgr.Owners(s.ID, s.Live.Account); len(owners) > 0 {
+			m.toast(0, "%s is now %s · saved in %s", s.Name, s.Live.Account, strings.Join(owners, ", "))
+		} else {
+			m.toast(0, "%s is now %s · not saved yet, pick a profile, → to the tool, i", s.Name, s.Live.Account)
+		}
+	}
 }
 
 func firstLine(s string) string {
@@ -506,7 +592,7 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	sel := m.selected()
 	switch k.String() {
 	case "q", "esc":
-		return m, tea.Quit
+		return m.syncActive(), tea.Quit
 	case "?":
 		m.modal = modalHelp
 	case "up", "k":
@@ -531,8 +617,11 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.toast(0, "dry-run off")
 		}
 	case "R":
-		m.statusLoaded = false
-		return m, tea.Batch(m.loadStatus(), m.loadBackups())
+		m, cmd := m.refresh()
+		if cmd != nil {
+			m.statusLoaded = false
+		}
+		return m, tea.Batch(cmd, m.loadBackups())
 	case "n":
 		return m.openProfileForm(formNewProfile, nil)
 	case "e":
@@ -575,6 +664,18 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 					title: "Remove identity rule?", lines: []string{r.profile + "  " + r.rule.String()}}
 				m.modal = modalConfirm
 			}
+			return m, nil
+		}
+		if only := m.focusedTool(); sel != nil && only != nil {
+			acct := sel.Accounts[only[0]]
+			if acct == nil {
+				m.toast(2, "%s has no saved %s account", sel.Name, m.toolName(only[0]))
+				return m, nil
+			}
+			m.pend = &pending{kind: actForget, profile: sel.Name, only: only,
+				title: "Forget " + sel.Name + "'s " + m.toolName(only[0]) + " account?",
+				lines: []string{"Deletes the saved " + acct.Label + " login from " + sel.Name + ".", m.toolName(only[0]) + " itself stays logged in as it is now."}}
+			m.modal = modalConfirm
 			return m, nil
 		}
 		if sel != nil {
@@ -756,7 +857,8 @@ func (m Model) execute(p pending) (tea.Model, tea.Cmd) {
 			m.cursor = max(0, len(m.names())-1)
 		}
 		m.toast(1, "profile %s deleted", p.profile)
-		return m, m.loadStatus()
+		cmd := m.loadStatus()
+		return m, cmd
 
 	case actDeleteRule:
 		ch, err := mgr.RemoveRule(p.profile, p.ruleIdx, dry)
@@ -773,7 +875,23 @@ func (m Model) execute(p pending) (tea.Model, tea.Cmd) {
 			m.rightCursor[tabRules] = max(0, n-1)
 		}
 		m.toast(1, "rule removed")
-		return m, m.loadStatus()
+		cmd := m.loadStatus()
+		return m, cmd
+
+	case actForget:
+		changes, err := mgr.Forget(p.profile, p.only, dry)
+		if err != nil {
+			m.toast(2, "%s", err.Error())
+			return m, nil
+		}
+		if dry {
+			res := opDoneMsg{title: "forget saved account", dry: true, changes: changes}
+			m.result, m.modal = &res, modalResult
+			return m, nil
+		}
+		m.toast(1, "%s forgot its %s account", p.profile, m.scope(p.only))
+		cmd := m.loadStatus()
+		return m, cmd
 	}
 	return m, nil
 }
@@ -931,7 +1049,8 @@ func (m Model) submitForm() (tea.Model, tea.Cmd) {
 		m.tab = tabRules
 		m.toast(1, "rule added · ~/.gitconfig managed block updated")
 	}
-	return m, m.loadStatus()
+	cmd := m.loadStatus()
+	return m, cmd
 }
 
 func (m Model) runChoices(p *config.Profile) []runChoice {

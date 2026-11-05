@@ -26,6 +26,21 @@ type Manager struct {
 	Env      *adapter.Env
 	Adapters []adapter.Adapter
 	Backups  *backup.Store
+
+	cfgStamp fileStamp
+}
+
+type fileStamp struct {
+	mod  time.Time
+	size int64
+}
+
+func stampOf(path string) fileStamp {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return fileStamp{}
+	}
+	return fileStamp{fi.ModTime(), fi.Size()}
 }
 
 type Options struct {
@@ -71,10 +86,31 @@ func Open(o Options) (*Manager, error) {
 		Env:      &adapter.Env{Paths: p, Vault: v, Run: r, Config: cfg},
 		Adapters: ads,
 		Backups:  &backup.Store{Dir: p.BackupDir(), Vault: v},
+		cfgStamp: stampOf(p.ConfigFile()),
 	}, nil
 }
 
-func (m *Manager) Save() error { return m.Cfg.Save(m.Paths.ConfigFile()) }
+func (m *Manager) Save() error {
+	if err := m.Cfg.Save(m.Paths.ConfigFile()); err != nil {
+		return err
+	}
+	m.cfgStamp = stampOf(m.Paths.ConfigFile())
+	return nil
+}
+
+// picks up config.toml changes made by another cream process, callers must not run ops concurrently
+func (m *Manager) ReloadIfChanged() (bool, error) {
+	st := stampOf(m.Paths.ConfigFile())
+	if st == m.cfgStamp {
+		return false, nil
+	}
+	cfg, err := config.Load(m.Paths.ConfigFile())
+	if err != nil {
+		return false, err
+	}
+	m.Cfg, m.Env.Config, m.cfgStamp = cfg, cfg, st
+	return true, nil
+}
 
 func (m *Manager) Select(only []string) ([]adapter.Adapter, error) {
 	if len(only) == 0 {
@@ -288,7 +324,9 @@ func (m *Manager) Use(ctx context.Context, profile string, o UseOptions, progres
 	return res, nil
 }
 
-func (m *Manager) syncOut(ctx context.Context, from *config.Profile, ads []adapter.Adapter) {
+// re-imports tools still logged in as the profile's account, returns the ids whose secret changed
+func (m *Manager) syncOut(ctx context.Context, from *config.Profile, ads []adapter.Adapter) []string {
+	var changed []string
 	for _, a := range ads {
 		if a.ID() == "git" || a.ID() == "github" {
 			continue // cream holds no secret for these
@@ -298,13 +336,113 @@ func (m *Manager) syncOut(ctx context.Context, from *config.Profile, ads []adapt
 			continue
 		}
 		st := a.Status(ctx, m.Env)
-		if st.LoggedIn && st.Account == acct.Label {
-			if na, err := a.Import(ctx, m.Env, from); err == nil {
-				na.Host = acct.Host
-				from.Accounts[a.ID()] = na
-			}
+		if !st.LoggedIn || st.Account != acct.Label {
+			continue
+		}
+		// identical secrets are not rewritten, so the import time only moves on a real refresh
+		dv := &dedupVault{Vault: m.Env.Vault}
+		env := *m.Env
+		env.Vault = dv
+		if na, err := a.Import(ctx, &env, from); err == nil && dv.wrote {
+			na.Host = acct.Host
+			from.Accounts[a.ID()] = na
+			changed = append(changed, a.ID())
 		}
 	}
+	return changed
+}
+
+type dedupVault struct {
+	vault.Vault
+	wrote bool
+}
+
+func (d *dedupVault) Set(key string, value []byte) error {
+	if old, err := d.Get(key); err == nil && string(old) == string(value) {
+		return nil
+	}
+	d.wrote = true
+	return d.Vault.Set(key, value)
+}
+
+// saves refreshed tokens of the active profile, e.g. before the user logs out of a tool elsewhere
+func (m *Manager) SyncActive(ctx context.Context) ([]string, error) {
+	p := m.Cfg.Profiles[m.Cfg.Active]
+	if p == nil {
+		return nil, nil
+	}
+	changed := m.syncOut(ctx, p, m.Adapters)
+	if len(changed) == 0 {
+		return nil, nil
+	}
+	if err := m.Save(); err != nil {
+		return changed, err
+	}
+	m.Log("sync profile=%s adapters=%s", p.Name, strings.Join(changed, ","))
+	return changed, nil
+}
+
+// profiles whose saved account for the adapter has this label
+func (m *Manager) Owners(adapterID, label string) []string {
+	var out []string
+	for _, n := range m.Cfg.Names() {
+		if a := m.Cfg.Profiles[n].Accounts[adapterID]; a != nil && a.Label == label {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// drops saved accounts from a profile without touching the live logins, empty only means all of them
+func (m *Manager) Forget(profile string, only []string, dryRun bool) ([]adapter.Change, error) {
+	p, err := m.Cfg.Profile(profile)
+	if err != nil {
+		return nil, err
+	}
+	ads, err := m.Select(only)
+	if err != nil {
+		return nil, err
+	}
+	var changes []adapter.Change
+	for _, a := range ads {
+		if p.Accounts[a.ID()] == nil {
+			continue
+		}
+		changes = append(changes,
+			adapter.Change{Adapter: a.ID(), Kind: "keyring", Target: vault.ProfileKey(p.Name, a.ID()), Action: "delete"},
+			adapter.Change{Adapter: a.ID(), Kind: "file", Target: m.Paths.ConfigFile() + " (profiles." + p.Name + ".accounts." + a.ID() + ")", Action: "remove"})
+	}
+	if len(changes) == 0 {
+		return nil, fmt.Errorf("profile %q has no saved account for %s", p.Name, strings.Join(idsOf(ads), ", "))
+	}
+	if dryRun {
+		return changes, nil
+	}
+	var forgot []string
+	for _, a := range ads {
+		if p.Accounts[a.ID()] == nil {
+			continue
+		}
+		if err := m.Env.Vault.Delete(vault.ProfileKey(p.Name, a.ID())); err != nil && !errors.Is(err, vault.ErrNotFound) {
+			return nil, fmt.Errorf("%s: %w", a.ID(), err)
+		}
+		delete(p.Accounts, a.ID())
+		_ = os.RemoveAll(m.Paths.SessionDir(p.Name, a.ID())) // run sessions hold a copy of the tokens
+		forgot = append(forgot, a.ID())
+	}
+	if err := m.Save(); err != nil {
+		return nil, err
+	}
+	m.Log("forget profile=%s adapters=%s", p.Name, strings.Join(forgot, ","))
+	return changes, nil
+}
+
+func idsOf(ads []adapter.Adapter) []string {
+	out := make([]string, 0, len(ads))
+	for _, a := range ads {
+		out = append(out, a.ID())
+	}
+	return out
 }
 
 func (m *Manager) rollback(snap *backup.Snapshot, ads []adapter.Adapter) error {

@@ -4,18 +4,50 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-CRE.A.M (CREdentiAls Master), binary `cream`: a Go + Bubble Tea TUI plus Cobra CLI that switches CLI logins (Claude Code, Codex, GitHub CLI, GitLab CLI, git identity) between named profiles. The product spec is `CREAM_concept.pdf`; the MVP implements only its MUST list. User docs live in `docs/`: `USAGE.md` (UI keys, commands), `HOW_IT_WORKS.md` (the files each adapter touches, switch safety, git rules) and `CONFIGURATION.md`. The project policies (CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, AI-POLICY) are in `docs/` as well, where GitHub still detects them. The root keeps only README, LICENSE, CLAUDE.md, VERSION, the Go entry point and the tool configs.
+CRE.A.M (CREdentiAls Master), binary `cream`: a Go + Bubble Tea TUI plus Cobra CLI that switches CLI logins (Claude Code, Codex, GitHub CLI, GitLab CLI, git identity) between named profiles. The root keeps only README, LICENSE, CLAUDE.md, VERSION, the Go entry point and the tool configs. Everything else that is prose lives in `docs/`.
 
 ## Git
 
 Never run `git add`, `git commit` or `git push`. The user does all git writes.
 
-## Style
+## How to work
 
-- Code comments are one line, lower case, with no trailing period, no em dashes and no semicolons. Only write them for hard logic or things someone needs to remember. Don't add doc comments that just restate the name.
-- Docs use plain, friendly language with no emojis and no AI-sounding filler. Call the project "cream", and mention "CRE.A.M (CREdentiAls Master)" where the name is explained. Where `cream` is already taken (packages), use `cream-go`.
-- The "Documentation" table in `README.md` links to every file in `docs/`. Add new docs there.
-- `CREAM_concept.pdf` and `ASCII.txt` are local only and gitignored.
+- Do what was asked and nothing more. Don't add features, options, flags, config settings or refactors nobody asked for. Mention a good idea instead of building it.
+- Keep it simple. Prefer the smallest change that fits the existing code over a new abstraction, interface, helper package or dependency. Three similar lines are fine. Don't build for hypothetical future needs.
+- Edit existing files rather than creating new ones, unless the change really needs a new file.
+- Reuse what exists: `core.Manager` for every operation, `fsutil` for file writes, `testutil` for tests.
+- New behaviour gets a test, and the invariants below must keep passing. Before saying something is done, run `go build ./...`, `go test ./... -count=1`, `golangci-lint run ./...` and `gofmt -l .`, and report failures as they are.
+- If a request is unclear or would break an invariant, ask instead of guessing.
+
+## Code style
+
+- Follow the surrounding code. Errors are wrapped with `%w`, user-facing errors say how to fix the problem (e.g. which command to run).
+
+## Documentation
+
+The docs, all in `docs/`:
+
+| File | Holds |
+| --- | --- |
+| `USAGE.md` | UI keys, every command, `--only`, `use` vs `run`, undo |
+| `HOW_IT_WORKS.md` | the files each adapter touches, where cream keeps its files, switch safety, git rules |
+| `CONFIGURATION.md` | `config.toml` settings and environment variables |
+| `SECURITY.md` | the promises cream makes, reporting, verifying releases |
+| `CONTRIBUTING.md`, `AI-POLICY.md`, `CODE_OF_CONDUCT.md` | project policies (kept in `docs/`, GitHub still finds them) |
+| `GITHUB_SETUP.md` | one-time GitHub, package-manager and signing setup, for maintainers |
+| `TODO.md` | what is left to do |
+
+When to update them:
+
+- A new or changed key, command or flag goes in `USAGE.md`. A new file an adapter touches goes in the `HOW_IT_WORKS.md` table. A new setting or env var goes in `CONFIGURATION.md`. Remove items from `TODO.md` when they are done.
+- Update the doc in the same change as the code. Don't create a new doc when a section in an existing one fits. A new doc must be added to the "Documentation" table in `README.md`.
+
+How to write them:
+
+- Plain, friendly and short. Say what something does and how to use it, then stop. One sentence beats a paragraph, a table beats a list of sentences.
+- Don't explain the obvious, repeat what another doc already says (link to it), justify design choices, or walk through scenarios step by step unless the flow is genuinely confusing.
+- No emojis, no marketing tone, no AI filler ("seamlessly", "robust", "it's worth noting", "in summary").
+- Call the project "cream", and mention "CRE.A.M (CREdentiAls Master)" only where the name is explained. Where `cream` is already taken (packages), use `cream-go`.
 
 ## Commands
 
@@ -91,7 +123,7 @@ The flow is `main.go` → `internal/cli` (Cobra) → `internal/core.Manager` ←
 - Scoop and Homebrew uploads are skipped when their token secrets are unset.
 - Checksums are signed with cosign; GHCR images are built via `dockers_v2` and the `Dockerfile`.
 - `VERSION` (plain semver, currently `0.1.0`) is the single source of truth. `main.go` embeds it, so dev builds report `v<VERSION>-dev`, and GoReleaser overrides it with `-X main.version=v{{.Version}}`.
-- `release.yml` fires when `VERSION` changes on `main` (or on manual dispatch). If tag `v<VERSION>` doesn't exist, it tests on three OSes, creates the tag and runs GoReleaser in the same run, because tags pushed with `GITHUB_TOKEN` can't trigger other workflows. It deletes the tag if publishing fails.
+- `release.yml` fires when `VERSION` changes on `main` (or on manual dispatch). If tag `v<VERSION>` doesn't exist, it tests on three OSes, creates the tag and runs GoReleaser in the same run, because tags pushed with `GITHUB_TOKEN` can't trigger other workflows. It deletes the tag if publishing fails. After a successful publish, `archive-old` renames every stable release that isn't the newest patch of its `major.minor` to `[ARCHIVED] vX.Y.Z` and marks it a pre-release.
 - Never create release tags manually; bump `VERSION` instead.
 - Release notes come from three places:
   - GitHub's native generated notes (`changelog.use: github-native`), with categories from `.github/release.yml`.
@@ -99,4 +131,3 @@ The flow is `main.go` → `internal/cli` (Cobra) → `internal/core.Manager` ←
   - A collapsible `vPREV...vNEW` commit list, passed to the GoReleaser footer through the `RELEASE_COMMITS` env var.
 - The annotated tag message lists the same commit range.
 - `ci.yml` runs tests on three OSes, lint (including a VERSION semver check), govulncheck and a snapshot build.
-- One-time GitHub, package-manager and signing setup is documented in `docs/GITHUB_SETUP.md`.
