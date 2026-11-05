@@ -126,7 +126,8 @@ func (m Model) viewHeader() string {
 		badges = append(badges, sBadgeUpd.Render("↑ "+m.upd.Latest))
 	}
 	leftPart := lipgloss.JoinHorizontal(lipgloss.Center, logo, "   ", info)
-	if lipgloss.Width(leftPart)+len(badges)*12+taglineWidth()+6 < m.w {
+	// in dry run the badge is the message, no splash text next to it
+	if !m.dryRun && lipgloss.Width(leftPart)+len(badges)*12+taglineWidth()+6 < m.w {
 		badges = append([]string{renderTagline(m.tagSeed, t)}, badges...)
 	}
 	right := strings.Join(badges, " ")
@@ -141,34 +142,37 @@ func (m Model) viewHeader() string {
 	return lipgloss.NewStyle().Padding(1, 1, 0, 1).Render(row)
 }
 
+// splash text
 var taglines = []string{
-	"zero telemetry",
 	"one switch, every login",
-	"secrets stay in your keyring",
-	"backed up before every change",
-	"rolls back if anything fails",
-	"work and personal, never mixed",
-	"commits with the right email",
-	"no daemons, no open ports",
-	"dry run anything",
-	"undo is one key away",
-	"no admin rights needed",
-	"your logins never leave this machine",
 	"log in once, switch forever",
 	"no more logout, login, repeat",
-	"two accounts, side by side",
-	"one tool or all of them",
-	"encrypted at rest",
-	"nothing phones home",
-	"no cloud, no sync, no account",
-	"plain text never touches disk",
-	"every change shown before it happens",
-	"open source, MIT licensed",
-	"tokens stay out of your history",
-	"git identity that follows you",
-	"claude, codex, gh, glab and git",
-	"made for people with two jobs",
-	"switch faster than you can alt-tab",
+	"work and personal, never mixed",
+	"commits with the right email",
+	"undo is one key away",
+	"zero telemetry",
+	"now with 100% more cream!",
+	"not a dairy product",
+	"lactose free!",
+	"whipped, not stirred",
+	"the cream always rises",
+	"cream rules everything around me",
+	"spilled milk? cream restore",
+	"not affiliated with ice cream",
+	"best served chilled",
+	"works on my machine!",
+	"git blame says it wasn't you",
+	"it's not a bug, it's a profile",
+	"alt-tab, but for logins",
+	"also try cream run!",
+	"your other account misses you",
+	"one more profile won't hurt",
+	"press ? for help, we won't judge",
+	"tabs vs spaces?",
+	"handcrafted in a terminal",
+	"powered by coffee and Go",
+	"10/10 would switch again",
+	"less logging in, more shipping",
 	"the cream of credential managers",
 }
 
