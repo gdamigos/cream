@@ -5,6 +5,7 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    assignees: [gdamigos]
     commit-message:
       prefix: "chore(deps)"
     groups:
@@ -19,6 +20,7 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    assignees: [gdamigos]
     commit-message:
       prefix: "chore(deps)"
     groups:
@@ -29,5 +31,6 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    assignees: [gdamigos]
     commit-message:
       prefix: "chore(deps)"
