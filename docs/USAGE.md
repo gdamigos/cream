@@ -1,6 +1,6 @@
 # Using cream
 
-You can use cream in two ways: the full-screen terminal UI, or plain commands. Everything the UI can do, a command can do too, so you can script it.
+Use the terminal UI or plain commands. Everything the UI does, a command does too.
 
 ## The terminal UI
 
@@ -41,9 +41,7 @@ Run `cream` with no arguments.
 | `D` | dry-run mode: every action only shows what it would change |
 | `R` `?` `q` | refresh now, help, quit |
 
-The UI keeps itself up to date. It re-reads every tool every few seconds and whenever its terminal gets focus again, and it picks up changes made by `cream` commands in other terminals.
-
-Set `CREAM_NO_INTRO=1` to skip the intro animation. When cream isn't running in a terminal (for example in a pipe), `cream` prints the status instead of opening the UI.
+The UI refreshes itself every few seconds and when its terminal gets focus, so logins you make in another terminal show up. `CREAM_NO_INTRO=1` skips the intro. Outside a terminal, `cream` prints the status instead.
 
 ## Commands
 
@@ -73,12 +71,7 @@ Exit codes are `0` for success and `1` for an error. `cream run` returns the exi
 
 ## Switching only some tools
 
-You don't have to use every tool. A profile only switches the tools you saved into it, and the rest are left alone. Some examples:
-
-- **Only git accounts.** You don't use Claude Code or Codex. Log in to gh, glab and set your git identity, save them into `work` and `personal`, and `enter` switches just those.
-- **One git account, several Claude or Codex accounts.** In the UI, select a profile, press `→` to move into the Status list, pick Claude Code and press `i` to save only that login. Later, `→`, pick Claude Code and `enter` switches only Claude Code, and your git setup stays as it is.
-
-From the command line the same thing is `--only`:
+A profile only switches the tools you saved into it. In the UI, `→` picks one tool for `enter`, `i` or `x`. On the command line, use `--only`:
 
 ```sh
 cream import personal --only claude
@@ -88,14 +81,12 @@ cream use work --only github,gitlab,git
 
 ## Switching everything vs. one terminal
 
-- `cream use work` changes the login files of every tool, so every new terminal and editor uses `work`.
-- `cream run work claude` leaves everything else alone and starts only that one program as `work`. This lets you use two accounts side by side. Anything after the profile name is the command to run, and you can put `--` before it when the command has its own flags: `cream run personal -- gh pr list`.
-
-A program can't change the environment of the shell that started it, which is why there are two modes.
+- `cream use work` changes every tool's login files, so every new terminal and editor uses `work`.
+- `cream run work claude` starts only that program as `work` and leaves everything else alone, so two accounts can run side by side. Put `--` before a command with its own flags: `cream run personal -- gh pr list`.
 
 ## Undo
 
-Every switch saves an encrypted backup first. `cream restore` goes back to the latest one, and `cream backups` lists them all so you can pick one with `cream restore <id>`. A restore saves a backup of the current state too, so you can undo it.
+Every switch saves an encrypted backup first. `cream restore` goes back to the latest one, or `cream restore <id>` to one from `cream backups`. A restore can be undone too.
 
 ## Good to know
 

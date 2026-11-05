@@ -1,6 +1,6 @@
 # GitHub setup, releases and packages
 
-This guide is for maintainers. It covers everything that has to be set up **on GitHub**, or with other services, for cream's automation to work. The files in the repo are already in place, so most steps below are one-time settings or secrets.
+For maintainers. The repo files are in place, so what's left is one-time settings and secrets.
 
 | What | Works right away | Needs setup |
 | --- | --- | --- |
@@ -27,10 +27,7 @@ This guide is for maintainers. It covers everything that has to be set up **on G
 git push -u origin main
 ```
 
-What happens:
-
-- **CI** runs. The `snapshot` job uploads the binaries for every platform as a download on the run page, which is handy for trying a commit before you release it.
-- **Release** runs too, because `VERSION` (currently `0.1.0`) is part of the push and the tag `v0.1.0` doesn't exist yet. So **the first push publishes v0.1.0** as a normal release.
+CI runs and uploads binaries for every platform on the run page. Release runs too, so **the first push publishes v0.1.0**.
 
 ## 2. Repository settings
 
@@ -76,6 +73,7 @@ The **Release** workflow then:
 3. creates the tag `v<VERSION>` on that commit
 4. runs GoReleaser, which publishes the GitHub release with its notes, the archives, the `.deb`, signed checksums, SBOMs, the ghcr.io image, and the Homebrew, Scoop and winget updates if their secrets exist
 5. adds build provenance that can be checked with `gh attestation verify`
+6. archives superseded releases: only the newest patch of each `major.minor` stays a normal release, older ones are renamed `[ARCHIVED] vX.Y.Z` and turned into pre-releases (downloads stay)
 
 Every bump is published as a normal release. If you ever want a test release, add a suffix by hand, like `0.2.0-rc.1`. That becomes a GitHub *pre-release* and the container image isn't tagged `latest`.
 
@@ -181,7 +179,7 @@ This is optional. CI already uploads `coverage.out` as a download. For a badge a
 
 ## 11. Debian apt repository
 
-This is optional and can come later. Releases include `cream-go_<version>_<arch>.deb`, which users install with `sudo apt install ./cream-go_*.deb`. The package is called `cream-go` because Debian already has an unrelated `cream` package. For `apt install cream-go` with automatic updates you need an apt repository, either a hosted one (Cloudsmith, packagecloud, Gemfury) or your own on GitHub Pages signed with a GPG key. GoReleaser can publish to Cloudsmith or Gemfury with a few lines of config.
+Optional. Releases already ship `cream-go_<version>_<arch>.deb`. For `apt install cream-go` with updates you need an apt repository, e.g. Cloudsmith or Gemfury, which GoReleaser can publish to.
 
 ## 12. Secrets
 
@@ -196,14 +194,6 @@ This is optional and can come later. Releases include `cream-go_<version>_<arch>
 
 A missing optional secret never fails a release. That step is just skipped.
 
-## 13. Checking a release
-
-```sh
-cosign verify-blob --bundle checksums.txt.sigstore.json \
-  --certificate-identity-regexp 'https://github.com/gdamigos/cream/.github/workflows/release.yml@.*' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com checksums.txt
-sha256sum --ignore-missing -c checksums.txt
-gh attestation verify cream_0.1.0_linux_amd64.tar.gz --repo gdamigos/cream
-```
+To check a release, see [verifying releases](SECURITY.md#verifying-releases).
 
 See also the [README](../README.md), [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).

@@ -36,7 +36,7 @@ Secrets are stored in your OS keyring (Windows Credential Manager, macOS Keychai
 3. Each adapter switches its tool to the new account.
 4. If any step fails, **everything is put back** from the backup and the old profile stays active. `cream restore` undoes a switch that worked.
 
-The UI also saves refreshed tokens for the active profile when its terminal loses focus and when you quit, so logging out of a tool in another terminal doesn't leave the profile with an old token. A token is only saved back while the tool is still logged in as the profile's account, and only when it actually changed.
+The UI does step 1 for the active profile too, when its terminal loses focus and when you quit, so logging out of a tool elsewhere doesn't leave the profile with an old token.
 
 ## Git identity
 
@@ -65,8 +65,4 @@ If you also set `user.email` in your own `~/.gitconfig`, it defeats strict mode 
 
 ## Network and privacy
 
-- **No telemetry, ever.** There is no setting for it because the code doesn't exist.
-- **One optional network call**: `GET api.github.com/repos/gdamigos/cream/releases/latest`, at most once a day. It only tells you a new version exists and never downloads or installs anything. cream never talks to Anthropic, OpenAI, GitHub or GitLab itself.
-- **Nothing in the background.** No daemon, no ports, no scheduled tasks, no admin rights.
-
-The full list of promises is in [SECURITY.md](SECURITY.md).
+No telemetry and nothing in the background. The only network call is an optional daily update check, and cream never talks to Anthropic, OpenAI, GitHub or GitLab itself. Details are in [SECURITY.md](SECURITY.md).

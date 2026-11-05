@@ -35,22 +35,16 @@ cream is short for **CRE.A.M**, the **CREdentiAls Master**. The command is `crea
 
 ## Why
 
-If you have a work account and a personal one, you end up logging out and back in to half a dozen CLI tools every time you switch. Each tool keeps its login somewhere different, and none of them agree on who you are right now. On top of that, your git commit identity is separate from your login. You can push to the work GitLab with your work account while every commit carries your personal email.
-
-cream groups one account per tool into a **profile** and switches all of them at once. You can do it from a full-screen terminal UI or from plain commands, on Windows, macOS and Debian. It is built to be safe: no telemetry, nothing running in the background, secrets in your OS keyring, and an encrypted backup before every change.
+With a work and a personal account, switching means logging out and back in to every CLI tool, and your git commit email doesn't follow along. cream groups one account per tool into a **profile** and switches them all at once, on Windows, macOS and Debian.
 
 ## Features
 
-- **Full-screen terminal UI** with live status for every tool, step-by-step progress when switching, and a dry-run mode
-- **Switch everything at once.** `cream use work` changes every tool for every new terminal and editor.
-- **Or just one tool.** Only use git? Only switching Claude accounts? A profile only touches the tools you saved into it, and in the UI you can pick a single tool to switch.
-- **Run one tool as another profile.** `cream run work claude` runs Claude Code as `work` in this terminal only, so two accounts can be used side by side.
-- **Import once.** cream saves the account you are logged in to right now, so you never have to log in again.
-- **Git identity that follows you.** Your git name and email switch with the profile. Or add rules so each repo picks its identity by folder or remote host, and repos that match no rule can't commit with the wrong email.
-- **Safe storage.** Windows Credential Manager, macOS Keychain or Secret Service, with an [age](https://age-encryption.org) encrypted file when there is no keyring.
-- **Backup and undo.** An encrypted backup is taken before every switch. If anything fails, everything is put back. `cream restore` undoes a switch.
-- **`--dry-run` on every command** shows each file and keyring entry that would change.
-- **No telemetry.** The only network call is an optional check for new versions.
+- **Terminal UI or plain commands.** Everything the UI does, a command does too.
+- **Switch everything or one tool.** `cream use work`, or pick a single tool in the UI.
+- **Run one tool as another profile** in this terminal only: `cream run work claude`.
+- **Import once.** cream saves the login you have now, so you never log in twice.
+- **Git identity that follows you**, or rules that pick it per repo by folder or remote host.
+- **Safe.** Secrets in your OS keyring, an encrypted backup before every change, rollback on failure, `--dry-run` everywhere, no telemetry.
 
 ## Install
 
@@ -112,15 +106,13 @@ Or just run **`cream`** and do all of this from the terminal UI.
 
 ## Roadmap
 
-This first version covers the essentials. Next up: a lock mode (`cream lock` and `cream unlock`), `cream doctor` and an optional pre-push check, adapters for Gemini, Copilot and OpenCode, API key profiles (`cream env`), SSH and signing keys per profile, per-folder `.cream` files, npm and PyPI tokens, and warnings before tokens expire. Later: cloud CLIs (AWS, gcloud, Azure, kubectl), token rotation and a way to write your own adapters.
+Next up: lock mode, `cream doctor`, more adapters (Gemini, Copilot, OpenCode), API key profiles and SSH keys per profile. The full list is in [TODO.md](docs/TODO.md).
 
 **Not planned:** telemetry, self-updating, background daemons, cloud sync, a GUI, or automating interactive logins.
 
-The detailed list is in [TODO.md](docs/TODO.md).
-
 ## Contributing
 
-Bug reports, fixes and new adapters are welcome. Start with the [contributing guide](docs/CONTRIBUTING.md), and if you use AI tools, read the [AI policy](docs/AI-POLICY.md) first.
+Bug reports, fixes and new adapters are welcome. See the [contributing guide](docs/CONTRIBUTING.md) and the [AI policy](docs/AI-POLICY.md).
 
 ## License
 

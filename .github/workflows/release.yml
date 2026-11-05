@@ -160,6 +160,39 @@ jobs:
         with:
           subject-checksums: ./dist/checksums.txt
 
+  archive-old:
+    # only the newest patch of each major.minor stays a normal release, the rest become [ARCHIVED] pre-releases
+    needs: goreleaser
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Archive superseded releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # stable vX.Y.Z only, -rc style pre-releases are left alone
+          gh api --paginate "repos/$REPO/releases?per_page=100" \
+            --jq '.[] | select(.draft | not) | select(.tag_name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")) | [.id, .tag_name, .name] | @tsv' > releases.tsv
+          declare -A newest
+          while IFS=$'\t' read -r id tag name || [ -n "$id" ]; do
+            IFS=. read -r major minor patch <<< "${tag#v}"
+            key="$major.$minor"
+            if [ -z "${newest[$key]:-}" ] || [ "$patch" -gt "${newest[$key]}" ]; then
+              newest[$key]=$patch
+            fi
+          done < releases.tsv
+          while IFS=$'\t' read -r id tag name || [ -n "$id" ]; do
+            IFS=. read -r major minor patch <<< "${tag#v}"
+            if [ "$patch" -eq "${newest[$major.$minor]}" ] || [[ "$name" == "[ARCHIVED]"* ]]; then
+              continue
+            fi
+            echo "archiving $tag"
+            gh api -X PATCH "repos/$REPO/releases/$id" -f name="[ARCHIVED] ${name:-$tag}" -F prerelease=true --silent
+          done < releases.tsv
+
   cleanup-on-failure:
     # drop the tag so a rerun can release the same version
     needs: [prepare, tag, goreleaser]
