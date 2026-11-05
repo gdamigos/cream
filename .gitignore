@@ -19,6 +19,9 @@ go.work.sum
 /MAINTAINER.md
 /CLAUDE.md
 
+# local scripts for recording the readme gif, docs/demo.gif itself is tracked
+/docs/demo/
+
 # local state if CREAM_HOME points inside the repo
 /.cream/
 .env

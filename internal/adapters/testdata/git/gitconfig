@@ -1,0 +1,16 @@
+[core]
+	autocrlf = input
+	editor = code --wait
+[init]
+	defaultBranch = main
+[alias]
+	st = status -sb
+	lg = log --oneline --graph --decorate
+[pull]
+	rebase = true
+[credential "https://github.com"]
+	helper = !gh auth git-credential
+[includeIf "gitdir:~/oss/"]
+	path = ~/.gitconfig-oss
+[url "git@github.com:"]
+	insteadOf = gh:

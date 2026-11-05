@@ -80,7 +80,7 @@ Tests live next to the code they test, as Go expects: `claude.go` is tested in `
 
 ### Adding an adapter
 
-Implement `adapter.Adapter` in `internal/adapters/<tool>.go`, add it to `adapters.All()`, write tests with `testutil.NewEnv` and list the files it touches in [how it works](HOW_IT_WORKS.md).
+Implement `adapter.Adapter` in `internal/adapters/<tool>.go`, add it to `adapters.All()`, write tests with `testutil.NewEnv` and list the files it touches in [how it works](HOW_IT_WORKS.md). Put realistic copies of the tool's files in `internal/adapters/testdata/<tool>/` (fake tokens and `example.com` addresses only), and test that a switch keeps everything in them that isn't the login.
 
 ## Releasing
 

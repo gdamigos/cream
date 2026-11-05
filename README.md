@@ -27,6 +27,10 @@ Move Claude Code, Codex, GitHub, GitLab and your git identity between `work` and
 [![Go Reference](https://pkg.go.dev/badge/github.com/gdamigos/cream.svg)](https://pkg.go.dev/github.com/gdamigos/cream)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+<br><br>
+
+<img src="docs/demo.gif" alt="cream switching Claude Code, Codex, GitHub and the git identity from work to personal" width="900">
+
 </div>
 
 ---

@@ -1,0 +1,3 @@
+model = "gpt-5-codex"
+# credentials in the OS keyring, which cream can't swap
+cli_auth_credentials_store = "keyring"

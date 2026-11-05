@@ -1,0 +1,10 @@
+{
+  "OPENAI_API_KEY": null,
+  "tokens": {
+    "id_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImRldkB3b3JrLmV4YW1wbGUuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsImh0dHBzOi8vYXBpLm9wZW5haS5jb20vYXV0aCI6eyJjaGF0Z3B0X3BsYW5fdHlwZSI6InBsdXMifSwiZXhwIjoxNzk4NzYxNjAwLCJpYXQiOjE3NjcyMjU2MDB9.FIXTURE-SIGNATURE",
+    "access_token": "FIXTURE-CODEX-ACCESS-TOKEN",
+    "refresh_token": "FIXTURE-CODEX-REFRESH-TOKEN",
+    "account_id": "00000000-0000-4000-8000-000000000003"
+  },
+  "last_refresh": "2026-11-01T09:30:00.000000Z"
+}

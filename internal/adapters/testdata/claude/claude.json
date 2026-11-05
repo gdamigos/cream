@@ -1,0 +1,29 @@
+{
+  "numStartups": 42,
+  "installMethod": "native",
+  "autoUpdates": true,
+  "theme": "dark",
+  "hasCompletedOnboarding": true,
+  "lastOnboardingVersion": "2.4.0",
+  "userID": "fixture-user-id-0000",
+  "tipsHistory": {
+    "new-user-warmup": 1,
+    "shift-enter": 12
+  },
+  "projects": {
+    "/home/dev/src/app": {
+      "allowedTools": ["Bash(go test:*)"],
+      "history": [],
+      "mcpServers": {},
+      "hasTrustDialogAccepted": true
+    }
+  },
+  "oauthAccount": {
+    "accountUuid": "00000000-0000-4000-8000-000000000001",
+    "emailAddress": "dev@work.example.com",
+    "organizationUuid": "00000000-0000-4000-8000-000000000002",
+    "organizationName": "Example Corp",
+    "organizationRole": "user",
+    "displayName": "Dev"
+  }
+}
