@@ -1,0 +1,46 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Never paste tokens, credential files or vault contents.**
+        If you used AI to write this report, say so (see the [AI policy](https://github.com/gdamigos/cream/blob/main/docs/AI-POLICY.md)).
+  - type: input
+    id: version
+    attributes:
+      label: cream version
+      description: Output of `cream version`
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Windows 11, macOS (Apple silicon), macOS (Intel), Debian 12, Debian 13, Other Linux]
+    validations:
+      required: true
+  - type: checkboxes
+    id: adapters
+    attributes:
+      label: Affected adapters
+      options:
+        - label: Claude Code
+        - label: Codex
+        - label: GitHub CLI
+        - label: GitLab CLI
+        - label: Git identity
+        - label: The TUI or CLI itself
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+      description: Include the command you ran. `--dry-run` output is safe to share.
+    validations:
+      required: true
+  - type: textarea
+    id: status
+    attributes:
+      label: "`cream status` output"
+      render: text

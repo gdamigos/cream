@@ -1,0 +1,37 @@
+name: PR labels
+
+# labels decide the release notes groups in .github/release.yml
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  pull-requests: write
+  issues: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Label from title
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          ensure() { gh label create "$1" --repo "$REPO" --color "$2" --force >/dev/null; }
+          declare -A map=(
+            [feat]=feature:a2eeef [fix]=bug:d73a4a [sec]=security:b60205 [security]=security:b60205
+            [perf]=performance:fbca04 [docs]=documentation:0075ca [chore]=chore:cfd3d7
+            [ci]=ci:cfd3d7 [build]=build:cfd3d7 [refactor]=refactor:cfd3d7 [test]=test:cfd3d7
+          )
+          type="$(printf '%s' "$TITLE" | sed -nE 's/^([a-z]+)(\([^)]*\))?(!)?:.*/\1/p')"
+          labels=()
+          if [ -n "$type" ] && [ -n "${map[$type]:-}" ]; then
+            entry="${map[$type]}"; ensure "${entry%%:*}" "${entry##*:}"; labels+=("${entry%%:*}")
+          fi
+          if printf '%s' "$TITLE" | grep -qE '^[a-z]+(\([^)]*\))?!:'; then
+            ensure breaking b60205; labels+=(breaking)
+          fi
+          for l in "${labels[@]}"; do gh pr edit "$PR" --repo "$REPO" --add-label "$l"; done
