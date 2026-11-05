@@ -2,6 +2,10 @@
 
 What is left to do, roughly in order. The bigger picture is in the [roadmap](../README.md#roadmap).
 
+## Scorecard
+
+- [ ] Move `x/crypto` from the pinned fix commit to the next tagged release once it ships
+
 ## Packaging
 
 - [ ] Create `gdamigos/homebrew-tap` and `gdamigos/scoop-bucket`, add their tokens
@@ -14,7 +18,6 @@ What is left to do, roughly in order. The bigger picture is in the [roadmap](../
 ## Known gaps
 
 - [ ] glab tokens kept in the OS keyring instead of `config.yml` aren't supported
-- [ ] govulncheck reports one unreachable `x/crypto` finding that is only fixed in an unreleased version, bump when it ships
 - [ ] Tests for the real keyring backends only run where a keyring exists, add CI coverage for macOS and Linux Secret Service
 
 ## Next features

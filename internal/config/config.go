@@ -200,5 +200,8 @@ func ValidateRule(r Rule) (Rule, error) {
 	default:
 		return r, fmt.Errorf("unknown rule kind %q (want dir or remote)", r.Kind)
 	}
+	if strings.TrimSpace(r.Pattern) == "" {
+		return r, errors.New("rule pattern is empty")
+	}
 	return r, nil
 }
