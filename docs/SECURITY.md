@@ -14,7 +14,7 @@ Only the latest minor release gets security fixes.
 
 Anything that breaks one of these is a security bug.
 
-- **No telemetry.** The only request cream makes on its own is an optional update check, `GET https://api.github.com/repos/gdamigos/cream/releases/latest`, at most once a day. It only tells you about a new version and never downloads anything. Turn it off with `update_check = false`, `--no-update-check` or `CREAM_NO_UPDATE_CHECK=1`. It is off in CI automatically.
+- **No telemetry.** The only request cream makes on its own is an optional update check, `GET https://api.github.com/repos/gdamigos/cream/releases/latest`, at most once a day. It only tells you about a new version and never downloads anything. Pressing `U` in the UI shows the update command for your package manager or opens the release page in your browser, and you run the update yourself. Turn it off with `update_check = false`, `--no-update-check` or `CREAM_NO_UPDATE_CHECK=1`. It is off in CI automatically.
 - **Secrets are stored safely.** They live in your OS keyring (Windows Credential Manager, macOS Keychain, Secret Service) or, when there is none, in a file encrypted with [age](https://age-encryption.org). cream never writes them in plain text to its own files.
 - **Backups are encrypted.** Every backup of a credential file is encrypted with age and readable only by you.
 - **Secrets never show up** in output, logs, `config.toml` or command arguments. Keychain writes go through `security -i` on stdin, and tokens for `cream run` only go into the child process's environment.

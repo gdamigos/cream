@@ -37,6 +37,7 @@ Run `cream` with no arguments.
 | `n` `e` `x` | new, edit or delete a profile (deleting also removes its saved logins) |
 | `a` | add a git identity rule (remote host or folder) |
 | `L` / `ctrl+l` | lock or unlock the selected profile / everything |
+| `U` | when a new version is out: the update command for how you installed cream (Scoop, Homebrew, `.deb`, `go install`), to copy, or the release page to open |
 | `u` | undo the last switch |
 | `tab` or `1` to `3` | Status, Rules and Backups tabs. Left and right move between the profile list and the tab. |
 | `D` | dry-run mode: every action only shows what it would change |

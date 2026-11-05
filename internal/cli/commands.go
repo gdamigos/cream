@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +19,7 @@ import (
 	"github.com/gdamigos/cream/internal/adapter"
 	"github.com/gdamigos/cream/internal/config"
 	"github.com/gdamigos/cream/internal/core"
+	"github.com/gdamigos/cream/internal/update"
 )
 
 func (a *App) dryBanner() {
@@ -505,7 +508,7 @@ func (a *App) printStatus(ctx context.Context, m *core.Manager, notify bool) err
 		ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
 		if res, err := a.UpdateChecker(m).Check(ctx); err == nil && res.Newer {
-			fmt.Fprintf(a.Err, "%s\n", sDim.Render("update available: "+res.Latest+" (update via scoop / brew / apt or "+res.URL+")"))
+			fmt.Fprintf(a.Err, "%s\n", sDim.Render("update available: "+res.Latest+" · "+updateHint(res.Latest)))
 		}
 	}
 	return nil
@@ -699,6 +702,20 @@ func newBackupsCmd(a *App) *cobra.Command {
 	}
 }
 
+// the update command for how this binary was installed, or the release page
+func updateHint(latest string) string {
+	exe, _ := os.Executable()
+	if real, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = real
+	}
+	home, _ := os.UserHomeDir()
+	in := update.DetectInstall(exe, runtime.GOOS, runtime.GOARCH, latest, home, os.Getenv)
+	if in.Command != "" {
+		return "run `" + in.Command + "`"
+	}
+	return update.ReleaseURL(latest)
+}
+
 func newVersionCmd(a *App) *cobra.Command {
 	var check bool
 	cmd := &cobra.Command{
@@ -722,7 +739,7 @@ func newVersionCmd(a *App) *cobra.Command {
 				return err
 			}
 			if res.Newer {
-				a.printf("%s %s is available: %s\n", sWarn.Render("↑"), res.Latest, res.URL)
+				a.printf("%s %s is available · %s\n", sWarn.Render("↑"), res.Latest, updateHint(res.Latest))
 			} else {
 				a.printf("%s up to date\n", sOK.Render("✓"))
 			}

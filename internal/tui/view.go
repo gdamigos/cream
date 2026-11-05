@@ -45,6 +45,8 @@ func (m Model) View() string {
 		box = m.viewHelp()
 	case modalResult:
 		box = m.viewResult()
+	case modalUpdate:
+		box = m.viewUpdate()
 	}
 	if box != "" {
 		base = overlay(base, box, m.w, m.h)
@@ -142,7 +144,7 @@ func (m Model) viewHeader() string {
 		badges = append(badges, sBadgeDry.Render("DRY RUN"))
 	}
 	if m.upd != nil && m.upd.Newer {
-		badges = append(badges, sBadgeUpd.Render("↑ "+m.upd.Latest))
+		badges = append(badges, sBadgeUpd.Render("↑ "+m.upd.Latest+" · U"))
 	}
 	leftPart := lipgloss.JoinHorizontal(lipgloss.Center, logo, "   ", info)
 	// in dry run the badge is the message, no splash text next to it
@@ -683,6 +685,7 @@ func (m Model) viewHelp() string {
 		{"x on a tool", "forget the account the profile saved for it"},
 		{"a", "add a git identity rule (folder or remote host)"},
 		{"L / ctrl+l", "lock or unlock the profile / everything"},
+		{"U", "how to update, when a new version is out"},
 		{"u", "undo: restore the latest backup"},
 		{"tab  1-3", "status · rules · backups"},
 		{"→ / ←", "move between profiles and the list on the right"},
@@ -695,6 +698,29 @@ func (m Model) viewHelp() string {
 		lines = append(lines, sKey.Render(pad(r[0], 12))+sBase.Render(r[1]))
 	}
 	lines = append(lines, "", sFaint.Render("Every action is also a CLI command: cream --help"))
+	return sModal.Render(strings.Join(lines, "\n"))
+}
+
+func (m Model) viewUpdate() string {
+	if m.upd == nil {
+		return ""
+	}
+	lines := []string{
+		sAccent.Render("cream " + m.upd.Latest + " is available"),
+		sDim.Render("you have " + m.opts.Version + " · installed with " + m.inst.Label),
+		"",
+	}
+	key := func(k, desc string) string { return sKey.Render(k) + sKeyDesc.Render(" "+desc) }
+	if m.inst.Command != "" {
+		// wrapped for display only, c copies it as one line
+		cmd := ansi.Wrap(m.inst.Command, max(20, min(76, m.w-16)), " ")
+		lines = append(lines, sDim.Render("Quit cream and run:"), "", sBold.Render(cmd), "",
+			key("c", "copy the command")+"   "+key("o", "open the release page"))
+	} else {
+		lines = append(lines, sDim.Render("Download the new version from the release page."), "",
+			key("o", "open the release page")+"   "+key("c", "copy the link"))
+	}
+	lines = append(lines, key("esc", "close"), "", sFaint.Render("cream never downloads or installs anything itself"))
 	return sModal.Render(strings.Join(lines, "\n"))
 }
 

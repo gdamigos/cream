@@ -6,11 +6,13 @@ import (
 	"math/rand/v2"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/aymanbagabas/go-osc52/v2"
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -57,6 +59,7 @@ const (
 	modalRun
 	modalHelp
 	modalResult
+	modalUpdate
 )
 
 type actionKind int
@@ -179,6 +182,7 @@ type Model struct {
 
 	toasts  []toast
 	upd     *update.Result
+	inst    update.Install // how this binary was installed, filled when the update window opens
 	tagSeed uint64
 }
 
@@ -388,7 +392,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case updateMsg:
 		m.upd = msg.res
 		if m.upd != nil && m.upd.Newer {
-			m.toast(0, "CRE.A.M %s is available", m.upd.Latest)
+			m.toast(0, "cream %s is available · press U to update", m.upd.Latest)
 		}
 		return m, nil
 
@@ -556,6 +560,30 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case modalHelp:
 		m.modal = modalNone
 		return m, nil
+	case modalUpdate:
+		switch k.String() {
+		case "c":
+			text := m.inst.Command
+			if text == "" {
+				text = update.ReleaseURL(m.upd.Latest)
+			}
+			if err := copyToClipboard(text); err != nil {
+				m.toast(2, "could not copy: %s", err.Error())
+			} else {
+				m.toast(1, "copied · quit with q, then paste it")
+			}
+			m.modal = modalNone
+		case "o":
+			if err := openURL(runtime.GOOS, update.ReleaseURL(m.upd.Latest)); err != nil {
+				m.toast(2, "could not open the browser: %s", err.Error())
+			} else {
+				m.toast(1, "release page opened in your browser")
+			}
+			m.modal = modalNone
+		case "esc", "q", "enter", "U":
+			m.modal = modalNone
+		}
+		return m, nil
 	case modalResult:
 		switch k.String() {
 		case "enter", "esc", "q", " ":
@@ -655,6 +683,8 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.runCursor = 0
 			m.modal = modalRun
 		}
+	case "U":
+		return m.openUpdate()
 	case "L":
 		if sel != nil {
 			return m.confirmLock(sel.Name)
@@ -770,6 +800,63 @@ func (m Model) confirmImport(p *config.Profile, only []string) (tea.Model, tea.C
 	pd.lines = append(pd.lines, "", "Secrets go to the "+vaultLabel(m.mgr.Env.Vault.Backend())+"; only labels go to config.toml.")
 	m.pend, m.modal = pd, modalConfirm
 	return m, nil
+}
+
+// shows how to update for the way cream was installed, cream itself never downloads anything
+func (m Model) openUpdate() (tea.Model, tea.Cmd) {
+	switch {
+	case !m.opts.UpdateCheck:
+		m.toast(0, "the update check is off")
+		return m, nil
+	case m.upd == nil:
+		m.toast(0, "no update information yet")
+		return m, nil
+	case !m.upd.Newer:
+		m.toast(1, "cream is up to date")
+		return m, nil
+	}
+	exe, _ := os.Executable()
+	if real, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = real // homebrew links bin/cream to the caskroom
+	}
+	home, _ := os.UserHomeDir()
+	m.inst = update.DetectInstall(exe, runtime.GOOS, runtime.GOARCH, m.upd.Latest, home, os.Getenv)
+	m.modal = modalUpdate
+	return m, nil
+}
+
+// OSC 52 asks the terminal itself to set the clipboard, works over ssh too
+func copyToClipboard(text string) error {
+	seq := osc52.New(text)
+	switch {
+	case os.Getenv("TMUX") != "":
+		seq = seq.Tmux()
+	case os.Getenv("STY") != "":
+		seq = seq.Screen()
+	}
+	_, err := seq.WriteTo(os.Stderr)
+	return err
+}
+
+// a var so tests don't open a browser
+var openURL = openInBrowser
+
+// the url is always built by update.ReleaseURL, and no shell is involved
+func openInBrowser(goos, url string) error {
+	var cmd *exec.Cmd
+	switch goos {
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	case "darwin":
+		cmd = exec.Command("open", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	go func() { _ = cmd.Wait() }()
+	return nil
 }
 
 // profile "" means everything, it locks or unlocks depending on the current state
