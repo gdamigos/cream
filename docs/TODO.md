@@ -4,7 +4,6 @@ Ideas and known problems in no particular ((execution)) order.
 
 ## Improvements
 
-- [ ] `cream doctor` to check each tool's setup and the current repo's author email against the profile that owns the remote
 - [ ] Optional pre-push check that the commit identity matches the remote
 - [ ] Signing key per profile (GPG or SSH)
 - [ ] SSH keys per profile (host aliases in `~/.ssh/config`, loaded into ssh-agent)

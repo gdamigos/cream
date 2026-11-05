@@ -62,6 +62,7 @@ cream run <profile> <command> [args…]   run one tool as a profile, this termin
 cream lock [profile]                    log tools out on purpose and turn git identity off
 cream unlock [profile]                  put everything back
 cream status [--json]                   who is logged in to each tool
+cream doctor                            check every tool's setup and this repo's git identity
 cream rule add <profile> --remote HOST | --dir PATH
 cream rule list
 cream rule remove <profile> <n>
@@ -87,6 +88,10 @@ cream use work --only github,gitlab,git
 
 - `cream use work` changes every tool's login files, so every new terminal and editor uses `work`.
 - `cream run work claude` starts only that program as `work` and leaves everything else alone, so two accounts can run side by side. Put `--` before a command with its own flags: `cream run personal -- gh pr list`.
+
+## Doctor
+
+`cream doctor` checks that each tool is logged in as the active profile expects, that every saved account is still in the vault and that `~/.gitconfig` matches your rules. Run it inside a git repo and it also tells you which profile owns the repo, whether commits here use that profile's email, and whether any commits you haven't pushed yet carry the wrong one. Every problem comes with a fix. It changes nothing and exits with `1` when something is broken.
 
 ## Lock mode
 
