@@ -1,0 +1,202 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+project_name: cream
+
+before:
+  hooks:
+    - go mod tidy
+    - go mod verify
+
+builds:
+  - id: cream
+    main: .
+    binary: cream
+    env:
+      - CGO_ENABLED=0
+    goos: [windows, darwin, linux]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version=v{{ .Version }}
+      - -X main.commit={{ .ShortCommit }}
+      - -X main.date={{ .CommitDate }}
+    # commit time instead of the clock keeps builds reproducible
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+universal_binaries:
+  - id: cream-universal
+    ids: [cream]
+    replace: false
+    name_template: cream
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: default
+    ids: [cream, cream-universal]
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ if eq .Arch "all" }}universal{{ else }}{{ .Arch }}{{ end }}
+    files:
+      - README.md
+      - LICENSE
+      - docs/SECURITY.md
+
+nfpms:
+  # debian already has an unrelated package called cream
+  - id: deb
+    ids: [cream]
+    package_name: cream-go
+    file_name_template: "{{ .PackageName }}_{{ .Version }}_{{ .Arch }}"
+    formats: [deb]
+    vendor: Giorgos Damigos
+    homepage: https://github.com/gdamigos/cream
+    maintainer: Giorgos Damigos <gdamigos@users.noreply.github.com>
+    description: |-
+      CRE.A.M (CREdentiAls Master) - one profile switch for every CLI login.
+      Switches Claude Code, Codex, GitHub CLI, GitLab CLI and git identity
+      between profiles. Zero telemetry, secrets in the OS keyring.
+    license: MIT
+    section: utils
+    priority: optional
+    bindir: /usr/bin
+    contents:
+      - src: README.md
+        dst: /usr/share/doc/cream-go/README.md
+      - src: LICENSE
+        dst: /usr/share/doc/cream-go/copyright
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+# needs syft on PATH
+sboms:
+  - id: archives
+    artifacts: archive
+
+# keyless, uses the github oidc token in ci
+signs:
+  - id: cosign
+    cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - sign-blob
+      - --bundle=${signature}
+      - ${artifact}
+      - --yes
+    artifacts: checksum
+    output: true
+
+dockers_v2:
+  - id: ghcr
+    ids: [cream]
+    dockerfile: Dockerfile
+    images:
+      - ghcr.io/gdamigos/cream
+    tags:
+      - "{{ .Version }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      org.opencontainers.image.title: cream
+      org.opencontainers.image.description: CRE.A.M - one profile switch for every CLI login you own
+      org.opencontainers.image.source: https://github.com/gdamigos/cream
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.licenses: MIT
+
+homebrew_casks:
+  - name: cream
+    ids: [default]
+    homepage: https://github.com/gdamigos/cream
+    description: One profile switch for every CLI login you own
+    license: MIT
+    binaries: [cream]
+    repository:
+      owner: gdamigos
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    skip_upload: '{{ if isEnvSet "HOMEBREW_TAP_GITHUB_TOKEN" }}false{{ else }}true{{ end }}'
+
+scoops:
+  - name: cream
+    ids: [default]
+    homepage: https://github.com/gdamigos/cream
+    description: One profile switch for every CLI login you own
+    license: MIT
+    repository:
+      owner: gdamigos
+      name: scoop-bucket
+      token: "{{ .Env.SCOOP_BUCKET_GITHUB_TOKEN }}"
+    skip_upload: '{{ if isEnvSet "SCOOP_BUCKET_GITHUB_TOKEN" }}false{{ else }}true{{ end }}'
+
+# opens a pr on microsoft/winget-pkgs from our fork
+winget:
+  - name: cream
+    ids: [default]
+    publisher: Giorgos Damigos
+    publisher_url: https://github.com/gdamigos
+    package_identifier: gdamigos.cream
+    short_description: One profile switch for every CLI login you own
+    description: |-
+      CRE.A.M (CREdentiAls Master) switches Claude Code, Codex, GitHub CLI,
+      GitLab CLI and git identity between profiles from a TUI or CLI.
+    homepage: https://github.com/gdamigos/cream
+    license: MIT
+    license_url: https://github.com/gdamigos/cream/blob/main/LICENSE
+    release_notes_url: https://github.com/gdamigos/cream/releases/tag/{{ .Tag }}
+    tags: [cli, tui, credentials, git, profiles]
+    skip_upload: '{{ if isEnvSet "WINGET_GITHUB_TOKEN" }}false{{ else }}true{{ end }}'
+    repository:
+      owner: gdamigos
+      name: winget-pkgs
+      branch: "cream-{{ .Version }}"
+      token: "{{ .Env.WINGET_GITHUB_TOKEN }}"
+      pull_request:
+        enabled: true
+        base:
+          owner: microsoft
+          name: winget-pkgs
+          branch: master
+
+notarize:
+  macos:
+    - enabled: '{{ isEnvSet "MACOS_SIGN_P12" }}'
+      ids: [cream, cream-universal]
+      sign:
+        certificate: "{{ .Env.MACOS_SIGN_P12 }}"
+        password: "{{ .Env.MACOS_SIGN_PASSWORD }}"
+      notarize:
+        issuer_id: "{{ .Env.MACOS_NOTARY_ISSUER_ID }}"
+        key_id: "{{ .Env.MACOS_NOTARY_KEY_ID }}"
+        key: "{{ .Env.MACOS_NOTARY_KEY }}"
+        wait: true
+
+release:
+  github:
+    owner: gdamigos
+    name: cream
+  prerelease: auto
+  footer: |
+    {{ if isEnvSet "RELEASE_COMMITS" }}{{ .Env.RELEASE_COMMITS }}{{ end }}
+
+    **Verify your download**
+    ```sh
+    cosign verify-blob --bundle checksums.txt.sigstore.json \
+      --certificate-identity-regexp 'https://github.com/gdamigos/cream/.github/workflows/release.yml@.*' \
+      --certificate-oidc-issuer https://token.actions.githubusercontent.com checksums.txt
+    sha256sum --ignore-missing -c checksums.txt
+    gh attestation verify <file> --repo gdamigos/cream
+    ```
+
+# github writes the notes, grouped by .github/release.yml
+changelog:
+  use: github-native

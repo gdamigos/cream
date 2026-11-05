@@ -1,0 +1,21 @@
+name: Feature / adapter request
+description: Suggest a feature or a new tool to support
+labels: [feature]
+body:
+  - type: input
+    id: tool
+    attributes:
+      label: Tool or area
+      description: e.g. Gemini CLI, AWS profiles, lock mode
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What do you switch by hand today?
+    validations:
+      required: true
+  - type: textarea
+    id: where
+    attributes:
+      label: Where does the tool keep its login?
+      description: Files, keyring items or environment variables. This is most of the work of writing an adapter.

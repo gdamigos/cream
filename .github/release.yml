@@ -1,0 +1,26 @@
+# labels come from workflows/pr-labels.yml
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+    authors:
+      - github-actions[bot]
+  categories:
+    - title: Breaking changes
+      labels: [breaking]
+    - title: Features
+      labels: [feature]
+    - title: Bug fixes
+      labels: [bug]
+    - title: Security
+      labels: [security]
+    - title: Performance
+      labels: [performance]
+    - title: Documentation
+      labels: [documentation]
+    - title: Dependencies
+      labels: [dependencies]
+    - title: Maintenance
+      labels: [chore, ci, build, refactor, test]
+    - title: Other changes
+      labels: ["*"]

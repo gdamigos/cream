@@ -1,0 +1,28 @@
+# build output
+/bin/
+/dist/
+*.exe
+*.test
+*.out
+coverage.*
+
+# private design notes and source art (the logo used by the app is internal/tui/logo.txt)
+/CREAM_concept.pdf
+/ASCII.txt
+*.pdf
+
+# local state if CREAM_HOME points inside the repo
+/.cream/
+.env
+.env.*
+
+# editors and OS
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# local ai tool settings
+/.claude/settings.local.json

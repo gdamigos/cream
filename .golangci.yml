@@ -1,0 +1,36 @@
+version: "2"
+
+linters:
+  enable:
+    - bodyclose
+    - errorlint
+    - gosec
+    - misspell
+    - nilerr
+    - unconvert
+    - unparam
+    - usestdlibvars
+  settings:
+    gosec:
+      excludes:
+        - G204 # subprocesses: we deliberately exec gh/glab/git/security with fixed argv
+        - G304 # file inclusion: paths come from the user's own tool config locations
+        - G306 # WriteFile perms: atomic writer preserves existing modes
+        - G301 # MkdirAll 0700 is already strict
+        - G101 # "credentials" constants are key names, not secrets
+        - G404 # math/rand only shuffles tui text, crypto uses age
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters: [gosec, errcheck, unparam]
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/gdamigos/cream
