@@ -168,6 +168,9 @@ func (m *Manager) Import(ctx context.Context, profile string, only []string, dry
 	if err != nil {
 		return nil, err
 	}
+	if err := m.checkUnlocked(profile); err != nil {
+		return nil, err
+	}
 	ads, err := m.Select(only)
 	if err != nil {
 		return nil, err
@@ -232,6 +235,9 @@ func (m *Manager) Use(ctx context.Context, profile string, o UseOptions, progres
 	if err != nil {
 		return nil, err
 	}
+	if err := m.checkUnlocked(profile); err != nil {
+		return nil, err
+	}
 	ads, err := m.Select(o.Only)
 	if err != nil {
 		return nil, err
@@ -245,26 +251,9 @@ func (m *Manager) Use(ctx context.Context, profile string, o UseOptions, progres
 		}
 	}
 
-	var files []string
-	for _, a := range ads {
-		files = append(files, a.Files(m.Env)...)
-	}
-	snap, err := backup.Capture(files)
+	snap, err := m.capture(ads, "switch-to-"+profile, res.From, profile)
 	if err != nil {
 		return nil, err
-	}
-	snap.Reason, snap.From, snap.To = "switch-to-"+profile, res.From, profile
-	snap.Extra = map[string]map[string][]byte{}
-	for _, a := range ads {
-		if s, ok := a.(adapter.Snapshotter); ok {
-			x, err := s.Snapshot(m.Env)
-			if err != nil {
-				return nil, fmt.Errorf("%s: backup: %w", a.ID(), err)
-			}
-			if x != nil {
-				snap.Extra[a.ID()] = x
-			}
-		}
 	}
 	if !o.DryRun {
 		if res.BackupPath, err = m.Backups.Save(snap); err != nil {
@@ -445,6 +434,32 @@ func idsOf(ads []adapter.Adapter) []string {
 	return out
 }
 
+// every file the adapters may touch plus non-file state like the macos keychain, not saved yet
+func (m *Manager) capture(ads []adapter.Adapter, reason, from, to string) (*backup.Snapshot, error) {
+	var files []string
+	for _, a := range ads {
+		files = append(files, a.Files(m.Env)...)
+	}
+	snap, err := backup.Capture(files)
+	if err != nil {
+		return nil, err
+	}
+	snap.Reason, snap.From, snap.To = reason, from, to
+	snap.Extra = map[string]map[string][]byte{}
+	for _, a := range ads {
+		if s, ok := a.(adapter.Snapshotter); ok {
+			x, err := s.Snapshot(m.Env)
+			if err != nil {
+				return nil, fmt.Errorf("%s: backup: %w", a.ID(), err)
+			}
+			if x != nil {
+				snap.Extra[a.ID()] = x
+			}
+		}
+	}
+	return snap, nil
+}
+
 func (m *Manager) rollback(snap *backup.Snapshot, ads []adapter.Adapter) error {
 	errs := []error{backup.RestoreFiles(snap)}
 	for _, a := range ads {
@@ -564,6 +579,9 @@ func (m *Manager) RemoveProfile(name string) error {
 		ids = append(ids, a.ID())
 	}
 	vault.DeleteProfile(m.Env.Vault, name, ids)
+	for _, id := range ids {
+		_ = m.Env.Vault.Delete(vault.LockKey(name, id))
+	}
 	_ = os.Remove(filepath.Join(m.Paths.GitDir(), name+".gitconfig"))
 	_ = os.RemoveAll(filepath.Join(m.Paths.CreamHome, "sessions", name))
 	if err := m.Save(); err != nil {
@@ -639,6 +657,9 @@ var toolAdapter = map[string]string{"claude": "claude", "codex": "codex", "gh": 
 func (m *Manager) SessionEnv(ctx context.Context, profile, tool string) (vars []string, finish func(), warnings []string, err error) {
 	p, err := m.Cfg.Profile(profile)
 	if err != nil {
+		return nil, nil, nil, err
+	}
+	if err := m.checkUnlocked(profile); err != nil {
 		return nil, nil, nil, err
 	}
 	base := strings.TrimSuffix(strings.ToLower(baseName(tool)), ".exe")

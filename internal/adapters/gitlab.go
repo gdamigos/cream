@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -226,6 +227,84 @@ func (g GitLab) Activate(ctx context.Context, env *adapter.Env, p *config.Profil
 		return nil, err
 	}
 	return ch, fsutil.WriteFileAtomic(glabConfigFile(env), out, 0o600)
+}
+
+type glabLocked struct {
+	Host string `json:"host"`
+	Node string `json:"node"` // the whole hosts.<host> entry as yaml
+}
+
+func (g GitLab) writeGlab(env *adapter.Env, d *glabDoc) error {
+	out, err := yaml.Marshal(d.root)
+	if err != nil {
+		return err
+	}
+	return fsutil.WriteFileAtomic(glabConfigFile(env), out, 0o600)
+}
+
+func (g GitLab) Lock(ctx context.Context, env *adapter.Env, key, account string, dryRun bool) (bool, []adapter.Change, error) {
+	d, ok, err := readGlab(env)
+	if err != nil || !ok {
+		return false, nil, err
+	}
+	host := g.pickHost(env, d, nil)
+	hn := mapGet(d.hosts(), host)
+	if scalar(mapGet(hn, "token")) == "" || (account != "" && glabLabel(host, hn) != account) {
+		return false, nil, nil
+	}
+	ch := []adapter.Change{{Adapter: g.ID(), Kind: "file", Target: glabConfigFile(env) + " (hosts." + host + ".token)", Action: "delete"}}
+	if dryRun {
+		return true, ch, nil
+	}
+	node, err := yaml.Marshal(hn)
+	if err != nil {
+		return false, nil, err
+	}
+	b, err := json.Marshal(glabLocked{Host: host, Node: string(node)})
+	if err != nil {
+		return false, nil, err
+	}
+	if err := env.Vault.Set(key, b); err != nil {
+		return false, nil, err
+	}
+	for i := 0; i+1 < len(hn.Content); i += 2 {
+		if hn.Content[i].Value == "token" {
+			hn.Content = append(hn.Content[:i], hn.Content[i+2:]...)
+			break
+		}
+	}
+	return true, ch, g.writeGlab(env, d)
+}
+
+func (g GitLab) Unlock(ctx context.Context, env *adapter.Env, key string, dryRun bool) (bool, []adapter.Change, error) {
+	b, err := env.Vault.Get(key)
+	if errors.Is(err, vault.ErrNotFound) {
+		return false, nil, nil
+	}
+	if err != nil {
+		return false, nil, err
+	}
+	var l glabLocked
+	if err := json.Unmarshal(b, &l); err != nil {
+		return false, nil, fmt.Errorf("gitlab: corrupt lock entry: %w", err)
+	}
+	ch := []adapter.Change{{Adapter: g.ID(), Kind: "file", Target: glabConfigFile(env) + " (hosts." + l.Host + ")", Action: "restore"}}
+	if dryRun {
+		return true, ch, nil
+	}
+	var n yaml.Node
+	if err := yaml.Unmarshal([]byte(l.Node), &n); err != nil || len(n.Content) == 0 {
+		return false, nil, errors.New("gitlab: corrupt lock entry")
+	}
+	d, _, err := readGlab(env)
+	if err != nil {
+		return false, nil, err
+	}
+	mapSet(d.hosts(), l.Host, n.Content[0])
+	if err := g.writeGlab(env, d); err != nil {
+		return false, nil, err
+	}
+	return true, ch, env.Vault.Delete(key)
 }
 
 func (g GitLab) SessionEnv(ctx context.Context, env *adapter.Env, p *config.Profile) ([]string, func() error, error) {

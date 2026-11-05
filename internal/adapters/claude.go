@@ -193,37 +193,101 @@ func (c Claude) loadSecret(env *adapter.Env, p *config.Profile) (*claudeSecret, 
 	return &sec, nil
 }
 
-func (c Claude) Activate(ctx context.Context, env *adapter.Env, p *config.Profile, dryRun bool) ([]adapter.Change, error) {
-	sec, err := c.loadSecret(env, p)
-	if err != nil {
-		return nil, err
-	}
+func (c Claude) loginChanges(env *adapter.Env, action string) []adapter.Change {
 	var changes []adapter.Change
 	if c.useKeychain(env) {
-		changes = append(changes, adapter.Change{Adapter: c.ID(), Kind: "keyring", Target: "macOS Keychain \"" + claudeKeychainService + "\"", Action: "replace"})
+		changes = append(changes, adapter.Change{Adapter: c.ID(), Kind: "keyring", Target: "macOS Keychain \"" + claudeKeychainService + "\"", Action: action})
 	} else {
-		changes = append(changes, adapter.Change{Adapter: c.ID(), Kind: "file", Target: claudeCredFile(env), Action: "replace"})
+		changes = append(changes, adapter.Change{Adapter: c.ID(), Kind: "file", Target: claudeCredFile(env), Action: action})
 	}
-	changes = append(changes, adapter.Change{Adapter: c.ID(), Kind: "file", Target: claudeStateFile(env) + " (oauthAccount)", Action: "patch"})
-	if dryRun {
-		return changes, nil
-	}
+	return append(changes, adapter.Change{Adapter: c.ID(), Kind: "file", Target: claudeStateFile(env) + " (oauthAccount)", Action: "patch"})
+}
+
+// writes the credentials and the oauthAccount block, the rest of .claude.json is kept
+func (c Claude) apply(ctx context.Context, env *adapter.Env, sec *claudeSecret) error {
 	if err := c.writeCredentials(ctx, env, sec.Credentials); err != nil {
-		return nil, err
+		return err
 	}
 	m, _, err := readJSONMap(claudeStateFile(env))
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if len(sec.OAuthAccount) > 0 {
 		m["oauthAccount"] = sec.OAuthAccount
 	} else {
 		delete(m, "oauthAccount")
 	}
-	if err := writeJSONMap(claudeStateFile(env), m); err != nil {
+	return writeJSONMap(claudeStateFile(env), m)
+}
+
+func (c Claude) Activate(ctx context.Context, env *adapter.Env, p *config.Profile, dryRun bool) ([]adapter.Change, error) {
+	sec, err := c.loadSecret(env, p)
+	if err != nil {
 		return nil, err
 	}
-	return changes, nil
+	changes := c.loginChanges(env, "replace")
+	if dryRun {
+		return changes, nil
+	}
+	return changes, c.apply(ctx, env, sec)
+}
+
+func (c Claude) Lock(ctx context.Context, env *adapter.Env, key, account string, dryRun bool) (bool, []adapter.Change, error) {
+	st := c.Status(ctx, env)
+	if !st.LoggedIn || (account != "" && st.Account != account) {
+		return false, nil, nil
+	}
+	changes := c.loginChanges(env, "delete")
+	if dryRun {
+		return true, changes, nil
+	}
+	creds, ok, err := c.readCredentials(ctx, env)
+	if err != nil || !ok {
+		return false, nil, err
+	}
+	m, _, err := readJSONMap(claudeStateFile(env))
+	if err != nil {
+		return false, nil, err
+	}
+	b, err := json.Marshal(claudeSecret{Credentials: creds, OAuthAccount: m["oauthAccount"]})
+	if err != nil {
+		return false, nil, err
+	}
+	if err := env.Vault.Set(key, b); err != nil {
+		return false, nil, err
+	}
+	if c.useKeychain(env) {
+		_, err = env.Run.Run(ctx, nil, nil, "/usr/bin/security", "delete-generic-password", "-s", claudeKeychainService)
+	} else {
+		err = os.Remove(claudeCredFile(env))
+	}
+	if err != nil {
+		return true, nil, err
+	}
+	delete(m, "oauthAccount")
+	return true, changes, writeJSONMap(claudeStateFile(env), m)
+}
+
+func (c Claude) Unlock(ctx context.Context, env *adapter.Env, key string, dryRun bool) (bool, []adapter.Change, error) {
+	b, err := env.Vault.Get(key)
+	if errors.Is(err, vault.ErrNotFound) {
+		return false, nil, nil
+	}
+	if err != nil {
+		return false, nil, err
+	}
+	changes := c.loginChanges(env, "restore")
+	if dryRun {
+		return true, changes, nil
+	}
+	var sec claudeSecret
+	if err := json.Unmarshal(b, &sec); err != nil {
+		return false, nil, fmt.Errorf("claude: corrupt lock entry: %w", err)
+	}
+	if err := c.apply(ctx, env, &sec); err != nil {
+		return false, nil, err
+	}
+	return true, changes, env.Vault.Delete(key)
 }
 
 func (c Claude) SessionEnv(ctx context.Context, env *adapter.Env, p *config.Profile) ([]string, func() error, error) {

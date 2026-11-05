@@ -135,6 +135,9 @@ func (m Model) viewHeader() string {
 		activeStr+sFaint.Render("  ·  ")+sDim.Render(vaultLabel(m.mgr.Env.Vault.Backend())),
 	)
 	var badges []string
+	if m.mgr.Cfg.Lock.All {
+		badges = append(badges, sBadgeDry.Render("LOCKED"))
+	}
 	if m.dryRun {
 		badges = append(badges, sBadgeDry.Render("DRY RUN"))
 	}
@@ -297,6 +300,9 @@ func (m Model) viewProfiles(w, h int) string {
 		row := marker + m.profileDot(n) + " " + nameSt.Render(name)
 		if n == m.mgr.Cfg.Active {
 			row += " " + sOK.Render("active")
+		}
+		if m.mgr.Cfg.Locked(n) {
+			row += " " + sWarn.Render("locked")
 		}
 		accts := len(p.Accounts)
 		sub := fmt.Sprintf("%d/%d tools", accts, len(m.mgr.Adapters))
@@ -601,7 +607,7 @@ func (m Model) helpLine() string {
 	case m.focusRight && m.tab == tabBackups:
 		items = []kv{{"↑↓", "select"}, {"enter", "restore"}, {"←", "profiles"}, {"tab", "view"}}
 	default:
-		items = []kv{{"enter", "switch"}, {"r", "run"}, {"i", "import"}, {"n", "new"}, {"e", "edit"}, {"x", "delete"}, {"a", "rule"}, {"u", "undo"}, {"D", "dry-run"}, {"tab", "view"}}
+		items = []kv{{"enter", "switch"}, {"r", "run"}, {"i", "import"}, {"n", "new"}, {"e", "edit"}, {"x", "delete"}, {"a", "rule"}, {"L", "lock"}, {"u", "undo"}, {"D", "dry-run"}, {"tab", "view"}}
 	}
 	sep := sFaint.Render("  ·  ")
 	render := func(it kv) string { return sKey.Render(it.k) + " " + sKeyDesc.Render(it.v) }
@@ -676,6 +682,7 @@ func (m Model) viewHelp() string {
 		{"n / e / x", "new / edit / delete profile"},
 		{"x on a tool", "forget the account the profile saved for it"},
 		{"a", "add a git identity rule (folder or remote host)"},
+		{"L / ctrl+l", "lock or unlock the profile / everything"},
 		{"u", "undo: restore the latest backup"},
 		{"tab  1-3", "status · rules · backups"},
 		{"→ / ←", "move between profiles and the list on the right"},

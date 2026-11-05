@@ -147,6 +147,42 @@ func (c Codex) Activate(ctx context.Context, env *adapter.Env, p *config.Profile
 	return ch, fsutil.WriteFileAtomic(codexAuth(env), b, 0o600)
 }
 
+func (c Codex) Lock(ctx context.Context, env *adapter.Env, key, account string, dryRun bool) (bool, []adapter.Change, error) {
+	b, ok, err := fsutil.ReadFileIfExists(codexAuth(env))
+	if err != nil || !ok {
+		return false, nil, err
+	}
+	if account != "" && codexLabel(b) != account {
+		return false, nil, nil
+	}
+	ch := []adapter.Change{{Adapter: c.ID(), Kind: "file", Target: codexAuth(env), Action: "delete"}}
+	if dryRun {
+		return true, ch, nil
+	}
+	if err := env.Vault.Set(key, b); err != nil {
+		return false, nil, err
+	}
+	return true, ch, os.Remove(codexAuth(env))
+}
+
+func (c Codex) Unlock(ctx context.Context, env *adapter.Env, key string, dryRun bool) (bool, []adapter.Change, error) {
+	b, err := env.Vault.Get(key)
+	if errors.Is(err, vault.ErrNotFound) {
+		return false, nil, nil
+	}
+	if err != nil {
+		return false, nil, err
+	}
+	ch := []adapter.Change{{Adapter: c.ID(), Kind: "file", Target: codexAuth(env), Action: "restore"}}
+	if dryRun {
+		return true, ch, nil
+	}
+	if err := fsutil.WriteFileAtomic(codexAuth(env), b, 0o600); err != nil {
+		return false, nil, err
+	}
+	return true, ch, env.Vault.Delete(key)
+}
+
 func (c Codex) SessionEnv(ctx context.Context, env *adapter.Env, p *config.Profile) ([]string, func() error, error) {
 	b, err := c.load(env, p)
 	if err != nil {

@@ -38,6 +38,20 @@ Secrets are stored in your OS keyring (Windows Credential Manager, macOS Keychai
 
 The UI does step 1 for the active profile too, when its terminal loses focus and when you quit, so logging out of a tool elsewhere doesn't leave the profile with an old token.
 
+## Lock mode
+
+`cream lock` takes a backup, saves each live login to the vault as `lock:*:<tool>` (or `lock:<profile>:<tool>`), then logs the tool out:
+
+| Tool | Lock | Unlock |
+| --- | --- | --- |
+| Claude Code | deletes the credentials and the `oauthAccount` block | writes them back |
+| Codex | deletes `auth.json` | writes it back |
+| GitHub CLI | reads each token with `gh auth token`, then `gh auth logout` (every account, or only the profile's) | `gh auth login --with-token` with the token on stdin, then `gh auth switch` |
+| GitLab CLI | removes the `token` from that host's entry in `config.yml` | puts the saved entry back |
+| Git identity | drops the locked profiles' rules from the managed block, and the global identity when everything is locked | puts them back |
+
+If any tool fails to lock, everything already locked is put back. The lock state is kept in the `[lock]` section of `config.toml`.
+
 ## Git identity
 
 With no rules, git identity simply follows the switch: `cream use personal` makes the personal name and email your global git identity, and `cream use work` changes it back.

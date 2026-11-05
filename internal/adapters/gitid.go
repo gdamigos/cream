@@ -231,7 +231,26 @@ func hasAnyRule(cfg *config.Config) bool {
 	return false
 }
 
+// locked profiles lose their rules and can't be the fallback, with everything locked no identity is left
+func unlockedView(cfg *config.Config, fallback *config.Profile) (*config.Config, *config.Profile) {
+	if !cfg.AnyLocked() {
+		return cfg, fallback
+	}
+	view := *cfg
+	view.Profiles = map[string]*config.Profile{}
+	for name, p := range cfg.Profiles {
+		if !cfg.Locked(name) {
+			view.Profiles[name] = p
+		}
+	}
+	if fallback != nil && cfg.Locked(fallback.Name) {
+		fallback = nil
+	}
+	return &view, fallback
+}
+
 func Sync(env *adapter.Env, cfg *config.Config, fallback *config.Profile, dryRun bool) ([]adapter.Change, error) {
+	cfg, fallback = unlockedView(cfg, fallback)
 	var changes []adapter.Change
 	for _, name := range cfg.Names() {
 		p := cfg.Profiles[name]

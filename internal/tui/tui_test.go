@@ -298,6 +298,48 @@ func TestLoginInOtherTerminal(t *testing.T) {
 	}
 }
 
+func TestLockAndUnlockKeys(t *testing.T) {
+	md, mgr := newModel(t)
+	if _, err := mgr.Import(ctxBG(), "work", nil, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	md = send(t, md, tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	// L on work locks just that profile
+	md = send(t, md, key("down"), key("L"))
+	if md.modal != modalConfirm || md.pend.kind != actLock || md.pend.profile != "work" {
+		t.Fatalf("expected a lock confirm for work, got %+v", md.pend)
+	}
+	md = send(t, md, key("y"), key("enter"))
+	if !mgr.Cfg.Locked("work") || mgr.Cfg.Lock.All {
+		t.Fatalf("lock state = %+v", mgr.Cfg.Lock)
+	}
+	if !strings.Contains(plain(md), "locked") {
+		t.Fatal("profile list doesn't show the lock")
+	}
+	// the switch preview is refused, so no confirm opens and the error shows as a toast
+	md = send(t, md, key("enter"))
+	if md.modal != modalNone || len(md.toasts) == 0 || !strings.Contains(md.toasts[len(md.toasts)-1].text, "locked") {
+		t.Fatalf("switching to a locked profile should be refused, modal %v toasts %+v", md.modal, md.toasts)
+	}
+
+	// L again unlocks it
+	md = send(t, md, key("L"))
+	if md.pend == nil || md.pend.kind != actUnlock {
+		t.Fatalf("expected an unlock confirm, got %+v", md.pend)
+	}
+	md = send(t, md, key("y"), key("enter"))
+	if mgr.Cfg.AnyLocked() {
+		t.Fatal("still locked")
+	}
+
+	// ctrl+l locks everything and shows the badge
+	md = send(t, md, tea.KeyMsg{Type: tea.KeyCtrlL}, key("y"), key("enter"))
+	if !mgr.Cfg.Lock.All || !strings.Contains(plain(md), "LOCKED") {
+		t.Fatal("everything lock or its badge missing")
+	}
+}
+
 func TestNewProfileFormAndHelp(t *testing.T) {
 	md, _ := newModel(t)
 	md = send(t, md, tea.WindowSizeMsg{Width: 120, Height: 40}, key("n"))

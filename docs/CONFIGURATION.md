@@ -35,6 +35,7 @@ label = "cream@company.com"
 | `log` | `true` | keep a local activity log in `cream.log` |
 | `vault.backend` | `auto` | `auto` uses the OS keyring when there is one and the encrypted file otherwise. `keyring` and `file` force one. |
 | `git.strict` | `true` | once you have identity rules, repos that match none of them can't commit. Set it to `false` to keep the active profile as a fallback identity. With no rules the active profile is always the global identity. |
+| `lock.all`, `lock.profiles` | empty | set by `cream lock` and cleared by `cream unlock`. Don't edit them by hand, the saved logins are in the vault. |
 
 ## Environment variables
 

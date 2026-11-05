@@ -82,6 +82,14 @@ type Snapshotter interface {
 	RestoreSnapshot(env *Env, s Snapshot) error
 }
 
+// a tool cream lock can log out on purpose and log back in on unlock
+type Locker interface {
+	// saves the live login under key and logs the tool out, a non-empty account limits it to that account
+	Lock(ctx context.Context, env *Env, key, account string, dryRun bool) (locked bool, changes []Change, err error)
+	// puts the login saved under key back and deletes it, false when nothing was saved
+	Unlock(ctx context.Context, env *Env, key string, dryRun bool) (restored bool, changes []Change, err error)
+}
+
 type ErrNotImported struct{ Adapter, Profile string }
 
 func (e ErrNotImported) Error() string {

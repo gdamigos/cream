@@ -68,6 +68,8 @@ const (
 	actRestore
 	actDeleteRule
 	actForget
+	actLock
+	actUnlock
 )
 
 // how often tool state is re-read so logins made in other terminals show up
@@ -653,6 +655,12 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.runCursor = 0
 			m.modal = modalRun
 		}
+	case "L":
+		if sel != nil {
+			return m.confirmLock(sel.Name)
+		}
+	case "ctrl+l":
+		return m.confirmLock("")
 	case "u":
 		if len(m.backups) > 0 {
 			return m.confirmRestore("")
@@ -764,6 +772,39 @@ func (m Model) confirmImport(p *config.Profile, only []string) (tea.Model, tea.C
 	return m, nil
 }
 
+// profile "" means everything, it locks or unlocks depending on the current state
+func (m Model) confirmLock(profile string) (tea.Model, tea.Cmd) {
+	cfg := m.mgr.Cfg
+	what := "everything"
+	if profile != "" {
+		what = profile
+	}
+	if profile != "" && cfg.Lock.All {
+		m.toast(2, "everything is locked · ctrl+l to unlock")
+		return m, nil
+	}
+	unlock := cfg.Lock.All
+	if profile != "" {
+		unlock = slices.Contains(cfg.Lock.Profiles, profile)
+	}
+	if unlock {
+		m.pend = &pending{kind: actUnlock, profile: profile, title: "Unlock " + what + "?",
+			lines: []string{"Logs the locked tools back in and turns git identity back on."}}
+		if profile == "" && len(cfg.Lock.Profiles) > 0 {
+			m.pend.lines = append(m.pend.lines, "Also unlocks "+strings.Join(cfg.Lock.Profiles, ", ")+".")
+		}
+	} else {
+		lines := []string{"Logs out every tool and turns git identity off until you unlock.", "Logins are saved first, a backup is taken."}
+		if profile != "" {
+			lines = []string{"Logs out the tools signed in as " + profile + "'s accounts", "and turns its git rules off. " + profile + " can't be used until unlocked."}
+		}
+		m.pend = &pending{kind: actLock, profile: profile, title: "Lock " + what + "?",
+			lines: append(lines, "", "Running Claude Code and Codex sessions keep working until restarted.")}
+	}
+	m.modal = modalConfirm
+	return m, nil
+}
+
 func (m Model) confirmRestore(id string) (tea.Model, tea.Cmd) {
 	label := "the latest backup"
 	if id != "" {
@@ -824,6 +865,38 @@ func (m Model) execute(p pending) (tea.Model, tea.Cmd) {
 			}
 			evs, err := mgr.Import(context.Background(), p.profile, p.only, dry, progress)
 			done := opDoneMsg{title: "imported into " + p.profile, err: err, dry: dry, events: evs}
+			for _, e := range evs {
+				done.changes = append(done.changes, e.Changes...)
+			}
+			ch <- done
+		}()
+		return m, tea.Batch(waitOp(ch), m.bar.SetPercent(0))
+
+	case actLock, actUnlock:
+		m = m.startSteps(nil)
+		m.busy = true
+		ch := make(chan tea.Msg, 32)
+		m.opCh = ch
+		what := "everything"
+		if p.profile != "" {
+			what = p.profile
+		}
+		verb := "locked "
+		if p.kind == actUnlock {
+			verb = "unlocked "
+		}
+		m.busyLabel = strings.TrimSuffix(verb, "ed ") + "ing " + what
+		go func() {
+			defer close(ch)
+			progress := func(e core.Event) { ch <- eventMsg(e) }
+			var evs []core.Event
+			var err error
+			if p.kind == actLock {
+				evs, err = mgr.Lock(context.Background(), p.profile, dry, progress)
+			} else {
+				evs, err = mgr.Unlock(context.Background(), p.profile, dry, progress)
+			}
+			done := opDoneMsg{title: verb + what, err: err, dry: dry, events: evs}
 			for _, e := range evs {
 				done.changes = append(done.changes, e.Changes...)
 			}

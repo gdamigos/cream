@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -26,8 +27,21 @@ type Config struct {
 	Log         *bool               `toml:"log,omitempty"`
 	Vault       VaultConfig         `toml:"vault"`
 	Git         GitConfig           `toml:"git"`
+	Lock        LockState           `toml:"lock,omitempty"`
 	Profiles    map[string]*Profile `toml:"profiles"`
 }
+
+// what cream lock turned off, the saved logins themselves live in the vault
+type LockState struct {
+	All      bool     `toml:"all,omitempty" json:"all"`
+	Profiles []string `toml:"profiles,omitempty" json:"profiles"`
+}
+
+func (c *Config) Locked(profile string) bool {
+	return c.Lock.All || slices.Contains(c.Lock.Profiles, profile)
+}
+
+func (c *Config) AnyLocked() bool { return c.Lock.All || len(c.Lock.Profiles) > 0 }
 
 type VaultConfig struct {
 	Backend string `toml:"backend"`
@@ -181,6 +195,7 @@ func (c *Config) RemoveProfile(name string) error {
 	if c.Active == name {
 		c.Active = ""
 	}
+	c.Lock.Profiles = slices.DeleteFunc(c.Lock.Profiles, func(p string) bool { return p == name })
 	return nil
 }
 

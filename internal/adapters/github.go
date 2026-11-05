@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"github.com/gdamigos/cream/internal/adapter"
 	"github.com/gdamigos/cream/internal/config"
 	"github.com/gdamigos/cream/internal/fsutil"
+	"github.com/gdamigos/cream/internal/vault"
 )
 
 // stores no secret, uses gh auth switch and reads gh auth token for sessions
@@ -172,6 +174,116 @@ func (g GitHub) SessionEnv(ctx context.Context, env *adapter.Env, p *config.Prof
 		vars = []string{"GH_ENTERPRISE_TOKEN=" + tok, "GH_HOST=" + a.Host}
 	}
 	return vars, nil, nil
+}
+
+type ghLocked struct {
+	Host   string            `json:"host"`
+	Active string            `json:"active"`
+	Tokens map[string]string `json:"tokens"`
+}
+
+// logs out account, or every gh account on the host when account is empty, so gh can't fall back to another one
+func (g GitHub) Lock(ctx context.Context, env *adapter.Env, key, account string, dryRun bool) (bool, []adapter.Change, error) {
+	hosts, err := readGhHosts(env)
+	if err != nil {
+		return false, nil, err
+	}
+	host := ghDefaultHost(env, hosts)
+	h, ok := hosts[host]
+	if !ok || h.User == "" {
+		return false, nil, nil
+	}
+	known := map[string]bool{h.User: true}
+	for u := range h.Users {
+		known[u] = true
+	}
+	var users []string
+	if account != "" {
+		if !known[account] {
+			return false, nil, nil
+		}
+		users = []string{account}
+	} else {
+		for u := range known {
+			users = append(users, u)
+		}
+		sort.Strings(users)
+	}
+	var ch []adapter.Change
+	for _, u := range users {
+		ch = append(ch, adapter.Change{Adapter: g.ID(), Kind: "exec", Target: "gh auth logout --hostname " + host + " --user " + u, Action: "run"})
+	}
+	if dryRun {
+		return true, ch, nil
+	}
+	l := ghLocked{Host: host, Active: h.User, Tokens: map[string]string{}}
+	for _, u := range users {
+		out, err := env.Run.Run(ctx, nil, nil, "gh", "auth", "token", "--hostname", host, "--user", u)
+		if err != nil {
+			return false, nil, fmt.Errorf("read gh token for %s: %w", u, err)
+		}
+		l.Tokens[u] = strings.TrimSpace(string(out))
+	}
+	b, err := json.Marshal(l)
+	if err != nil {
+		return false, nil, err
+	}
+	if err := env.Vault.Set(key, b); err != nil {
+		return false, nil, err
+	}
+	for _, u := range users {
+		if _, err := env.Run.Run(ctx, nil, nil, "gh", "auth", "logout", "--hostname", host, "--user", u); err != nil {
+			return true, nil, err
+		}
+	}
+	return true, ch, nil
+}
+
+// logs the saved accounts back in, then keeps whoever is active now, or the one active at lock time
+func (g GitHub) Unlock(ctx context.Context, env *adapter.Env, key string, dryRun bool) (bool, []adapter.Change, error) {
+	b, err := env.Vault.Get(key)
+	if errors.Is(err, vault.ErrNotFound) {
+		return false, nil, nil
+	}
+	if err != nil {
+		return false, nil, err
+	}
+	var l ghLocked
+	if err := json.Unmarshal(b, &l); err != nil {
+		return false, nil, fmt.Errorf("github: corrupt lock entry: %w", err)
+	}
+	users := make([]string, 0, len(l.Tokens))
+	for u := range l.Tokens {
+		users = append(users, u)
+	}
+	sort.Strings(users)
+	var ch []adapter.Change
+	for _, u := range users {
+		ch = append(ch, adapter.Change{Adapter: g.ID(), Kind: "exec", Target: "gh auth login --hostname " + l.Host + " --with-token (" + u + ")", Action: "run"})
+	}
+	if dryRun {
+		return true, ch, nil
+	}
+	current := ""
+	if hosts, err := readGhHosts(env); err == nil {
+		current = hosts[l.Host].User
+	}
+	for _, u := range users {
+		// the token goes through stdin, never argv
+		if _, err := env.Run.Run(ctx, []byte(l.Tokens[u]+"\n"), nil, "gh", "auth", "login", "--hostname", l.Host, "--with-token"); err != nil {
+			return false, nil, fmt.Errorf("gh login for %s: %w", u, err)
+		}
+	}
+	active := current
+	if active == "" {
+		active = l.Active
+	}
+	if active != "" {
+		if _, err := env.Run.Run(ctx, nil, nil, "gh", "auth", "switch", "--hostname", l.Host, "--user", active); err != nil {
+			return false, nil, err
+		}
+	}
+	return true, ch, env.Vault.Delete(key)
 }
 
 func (g GitHub) Verify(ctx context.Context, env *adapter.Env) (string, error) {
