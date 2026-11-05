@@ -4,6 +4,7 @@ Ideas and known problems in no particular ((execution)) order.
 
 ## Improvements
 
+- [ ] [#11](https://github.com/gdamigos/cream/issues/11) - test feat by [@gdamigos](https://github.com/gdamigos)
 - [ ] `cream doctor` to check each tool's setup and the current repo's author email against the profile that owns the remote
 - [ ] Optional pre-push check that the commit identity matches the remote
 - [ ] Signing key per profile (GPG or SSH)
