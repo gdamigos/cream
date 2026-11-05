@@ -36,6 +36,8 @@ Secrets are stored in your OS keyring (Windows Credential Manager, macOS Keychai
 3. Each adapter switches its tool to the new account.
 4. If any step fails, **everything is put back** from the backup and the old profile stays active. `cream restore` undoes a switch that worked.
 
+The UI also saves refreshed tokens for the active profile when its terminal loses focus and when you quit, so logging out of a tool in another terminal doesn't leave the profile with an old token. A token is only saved back while the tool is still logged in as the profile's account, and only when it actually changed.
+
 ## Git identity
 
 With no rules, git identity simply follows the switch: `cream use personal` makes the personal name and email your global git identity, and `cream use work` changes it back.

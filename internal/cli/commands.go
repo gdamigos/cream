@@ -212,7 +212,43 @@ func newProfileCmd(a *App) *cobra.Command {
 	}
 	rm.Flags().BoolVarP(&yes, "yes", "y", false, "confirm deletion")
 
-	cmd.AddCommand(add, set, list, rm)
+	var forgetOnly string
+	var forgetYes bool
+	forget := &cobra.Command{
+		Use:     "forget <name> --only <tools>",
+		Short:   "Drop saved accounts from a profile, keeping the profile",
+		Long:    "Delete the accounts a profile saved for some tools, e.g. after importing the wrong login.\nThe tools themselves stay logged in as they are now.",
+		Example: "  cream profile forget work --only claude --yes",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m, err := a.Manager()
+			if err != nil {
+				return err
+			}
+			only := splitList(forgetOnly)
+			if len(only) == 0 {
+				return errors.New("need --only <tools>, e.g. --only claude (use `cream profile remove` to delete the whole profile)")
+			}
+			a.dryBanner()
+			if !a.DryRun && !forgetYes {
+				return errors.New("this deletes saved credentials; re-run with --yes to confirm")
+			}
+			changes, err := m.Forget(args[0], only, a.DryRun)
+			if err != nil {
+				return err
+			}
+			if a.DryRun {
+				a.printChanges(changes)
+				return nil
+			}
+			a.printf("%s %s forgot %s\n", sOK.Render("✓"), sBold.Render(args[0]), strings.Join(only, ", "))
+			return nil
+		},
+	}
+	forget.Flags().StringVar(&forgetOnly, "only", "", "comma-separated adapters (claude,codex,github,gitlab,git)")
+	forget.Flags().BoolVarP(&forgetYes, "yes", "y", false, "confirm deletion")
+
+	cmd.AddCommand(add, set, list, rm, forget)
 	return cmd
 }
 

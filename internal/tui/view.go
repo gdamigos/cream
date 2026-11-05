@@ -388,11 +388,18 @@ func (m Model) statusHints(sel *config.Profile, focused bool) []string {
 	dot := sKeyDesc.Render(" · ")
 	if focused && len(m.status) > 0 {
 		s := m.status[m.rightCursor[tabStatus]]
-		return []string{
+		out := []string{
 			key("enter", "switch only "+s.Name+" to ") + sBold.Render(sel.Name),
 			key("i", "save the current "+s.Name+" login into ") + sBold.Render(sel.Name),
-			key("←", "back to switching everything"),
 		}
+		if sel.Accounts[s.ID] != nil {
+			out = append(out, key("x", "forget the "+s.Name+" account saved in ")+sBold.Render(sel.Name))
+		}
+		out = append(out, key("←", "back to switching everything"))
+		if s.Live.LoggedIn && len(m.mgr.Owners(s.ID, s.Live.Account)) == 0 {
+			out = append(out, sWarn.Render("! ")+sDim.Render(s.Live.Account+" is not saved in any profile yet"))
+		}
+		return out
 	}
 	var out []string
 	if sel.Name == m.mgr.Cfg.Active {
@@ -568,13 +575,13 @@ func (m Model) helpLine() string {
 	var items []kv
 	switch {
 	case m.focusRight && m.tab == tabStatus:
-		items = []kv{{"↑↓", "tool"}, {"enter", "switch this tool"}, {"i", "import this tool"}, {"←", "profiles"}, {"tab", "view"}}
+		items = []kv{{"↑↓", "tool"}, {"enter", "switch this tool"}, {"i", "import this tool"}, {"x", "forget"}, {"←", "profiles"}, {"tab", "view"}}
 	case m.focusRight && m.tab == tabRules:
 		items = []kv{{"↑↓", "select"}, {"x", "remove"}, {"a", "add"}, {"←", "profiles"}, {"tab", "view"}}
 	case m.focusRight && m.tab == tabBackups:
 		items = []kv{{"↑↓", "select"}, {"enter", "restore"}, {"←", "profiles"}, {"tab", "view"}}
 	default:
-		items = []kv{{"enter", "switch"}, {"r", "run"}, {"i", "import"}, {"n", "new"}, {"e", "edit"}, {"a", "rule"}, {"u", "undo"}, {"D", "dry-run"}, {"tab", "view"}}
+		items = []kv{{"enter", "switch"}, {"r", "run"}, {"i", "import"}, {"n", "new"}, {"e", "edit"}, {"x", "delete"}, {"a", "rule"}, {"u", "undo"}, {"D", "dry-run"}, {"tab", "view"}}
 	}
 	sep := sFaint.Render("  ·  ")
 	render := func(it kv) string { return sKey.Render(it.k) + " " + sKeyDesc.Render(it.v) }
@@ -647,12 +654,13 @@ func (m Model) viewHelp() string {
 		{"r", "run one tool as the profile, this terminal only"},
 		{"i", "import the currently logged-in accounts"},
 		{"n / e / x", "new / edit / delete profile"},
+		{"x on a tool", "forget the account the profile saved for it"},
 		{"a", "add a git identity rule (folder or remote host)"},
 		{"u", "undo: restore the latest backup"},
 		{"tab  1-3", "status · rules · backups"},
 		{"→ / ←", "move between profiles and the list on the right"},
 		{"D", "toggle dry-run (preview changes only)"},
-		{"R", "refresh tool state"},
+		{"R", "refresh now (also automatic every few seconds)"},
 		{"q", "quit"},
 	}
 	lines := []string{sAccent.Render("Keys"), ""}

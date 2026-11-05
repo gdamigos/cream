@@ -31,14 +31,17 @@ Run `cream` with no arguments.
 | `enter` | switch every tool to the selected profile (shows a preview first) |
 | `→` then `enter` | on the Status tab, pick one tool and switch only that tool |
 | `→` then `i` | on the Status tab, pick one tool and save only that tool's current login |
+| `→` then `x` | on the Status tab, pick one tool and forget the account the profile saved for it |
 | `r` | run Claude Code, Codex, gh, glab or a shell as the profile, in this terminal only |
 | `i` | save the accounts you are logged in to now into the profile |
-| `n` `e` `x` | new, edit or delete a profile |
+| `n` `e` `x` | new, edit or delete a profile (deleting also removes its saved logins) |
 | `a` | add a git identity rule (remote host or folder) |
 | `u` | undo the last switch |
 | `tab` or `1` to `3` | Status, Rules and Backups tabs. Left and right move between the profile list and the tab. |
 | `D` | dry-run mode: every action only shows what it would change |
-| `R` `?` `q` | refresh, help, quit |
+| `R` `?` `q` | refresh now, help, quit |
+
+The UI keeps itself up to date. It re-reads every tool every few seconds and whenever its terminal gets focus again, and it picks up changes made by `cream` commands in other terminals.
 
 Set `CREAM_NO_INTRO=1` to skip the intro animation. When cream isn't running in a terminal (for example in a pipe), `cream` prints the status instead of opening the UI.
 
@@ -52,6 +55,7 @@ cream profile add <name> [--git-name … --git-email … --signing-key … -d �
 cream profile set <name> [--git-name … --git-email … --signing-key … -d …]
 cream profile list
 cream profile remove <name> --yes       also deletes its saved logins
+cream profile forget <name> --only claude[,…] --yes   drop saved logins, keep the profile
 cream import <profile> [--only claude,codex,github,gitlab,git] [--gitlab-host HOST]
 cream use <profile> [--only …]          switch every tool
 cream run <profile> <command> [args…]   run one tool as a profile, this terminal only
