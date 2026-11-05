@@ -27,6 +27,7 @@ Ideas and known problems in no particular ((execution)) order.
 
 ## Bugs
 
+- [ ] [#9](https://github.com/gdamigos/cream/issues/9) - test bug by [@gdamigos](https://github.com/gdamigos)
 - [ ] glab tokens stored in the OS keyring instead of `config.yml` aren't supported
 - [ ] An empty update check result (before the first release exists) is cached for 24 hours
 - [ ] `x/crypto` is pinned to a fix commit instead of a tagged release
