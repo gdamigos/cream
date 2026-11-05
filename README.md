@@ -98,17 +98,10 @@ Or just run **`cream`** and do all of this from the terminal UI.
 | [How it works](docs/HOW_IT_WORKS.md) | what each tool's adapter changes, where files live, how switches stay safe, git rules |
 | [Configuration](docs/CONFIGURATION.md) | `config.toml` and environment variables |
 | [Security](docs/SECURITY.md) | what cream promises, reporting a problem, verifying downloads |
-| [Contributing](docs/CONTRIBUTING.md) | reporting bugs, setting up, sending changes, adding a tool |
+| [Contributing](docs/CONTRIBUTING.md) | reporting bugs, setting up, sending changes, adding a tool, releasing |
 | [AI policy](docs/AI-POLICY.md) | rules for AI-assisted contributions |
 | [Code of conduct](docs/CODE_OF_CONDUCT.md) | how we treat each other |
-| [GitHub setup](docs/GITHUB_SETUP.md) | releases, packages and signing, for maintainers |
 | [TODO](docs/TODO.md) | what is left to do |
-
-## Roadmap
-
-Next up: lock mode, `cream doctor`, more adapters (Gemini, Copilot, OpenCode), API key profiles and SSH keys per profile. The full list is in [TODO.md](docs/TODO.md).
-
-**Not planned:** telemetry, self-updating, background daemons, cloud sync, a GUI, or automating interactive logins.
 
 ## Contributing
 

@@ -135,6 +135,36 @@ func TestIntroThenMain(t *testing.T) {
 		t.Fatal("main view missing")
 	}
 }
+func TestIntroWaitsForInput(t *testing.T) {
+	_, mgr := newModel(t)
+	md := New(mgr, Options{Version: "test"})
+	md = send(t, md, tea.WindowSizeMsg{Width: 120, Height: 40})
+	at := func(sec float64) Model {
+		md.start = time.Now().Add(-time.Duration(sec * float64(time.Second)))
+		return send(t, md, frameMsg(time.Now()))
+	}
+
+	md = at(introHint + 0.2)
+	v := plain(md)
+	if !md.intro || !strings.Contains(v, "one profile switch for every CLI login you own") || !strings.Contains(v, "press any key") {
+		t.Fatalf("bottom text missing:\n%s", v)
+	}
+	if strings.Contains(v, "still there") {
+		t.Fatal("idle message shown too early")
+	}
+
+	md = at(introIdle + 3)
+	if !md.intro || !strings.Contains(plain(md), "still there?...") {
+		t.Fatalf("intro should still wait and ask:\n%s", plain(md))
+	}
+
+	if md = send(t, md, tea.MouseMsg{Action: tea.MouseActionMotion}); !md.intro {
+		t.Fatal("moving the mouse skipped the intro")
+	}
+	if md = send(t, md, tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft}); md.intro {
+		t.Fatal("a click should skip the intro")
+	}
+}
 
 func TestStatusAndImportFlow(t *testing.T) {
 	md, mgr := newModel(t)
@@ -293,6 +323,11 @@ func TestGradientHelpers(t *testing.T) {
 	out := paintGradient(smallLogo, 0.3, 0.5)
 	if ansi.StringWidth(strings.Split(out, "\n")[0]) != ansi.StringWidth(smallLogo[0]) {
 		t.Fatal("gradient changed the logo width")
+	}
+	// the whole logo is visible before the eased reveal reaches 1, so the end never crawls
+	full := ansi.Strip(paintGradient(bigLogoLines(), 0, 1))
+	if got := ansi.Strip(paintGradient(bigLogoLines(), 0, 0.9)); got != full {
+		t.Fatal("reveal stalls on the last block")
 	}
 	if len(bigLogoLines()) != 12 {
 		t.Fatal("embedded logo missing")

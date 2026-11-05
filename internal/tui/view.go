@@ -52,31 +52,47 @@ func (m Model) View() string {
 	return base
 }
 
+// intro timeline in seconds
+const (
+	introReveal = 1.8
+	introTag    = 1.6
+	introTagCPS = 20
+	introSub    = 2.7
+	introHint   = 3.4
+	introIdle   = 10
+)
+
 func (m Model) viewIntro() string {
 	t := m.tFrame()
-	reveal := math.Min(1, t/0.7)
+	reveal := math.Min(1, t/introReveal)
 	inv := 1 - reveal
-	reveal = 1 - inv*inv*inv // ease-out
+	reveal = 1 - inv*inv
 	lines := bigLogoLines()
 	if m.w < 84 || m.h < 24 {
 		lines = smallLogo
 	}
-	logo := paintGradient(lines, t*0.25, reveal)
+	logo := paintGradient(lines, t*0.12, reveal)
 	tag := ""
-	if t > 0.9 {
+	if t > introTag {
 		full := "CREdentiAls Master"
-		n := int(math.Min(float64(len(full)), (t-0.9)*40))
+		n := int(math.Min(float64(len(full)), (t-introTag)*introTagCPS))
 		tag = sBold.Render(full[:n])
 	}
 	sub := ""
-	if t > 1.35 {
-		sub = shimmerText("one profile switch for every CLI login you own", t, cDim, cBright)
+	if t > introSub {
+		sub = shimmerText("one profile switch for every CLI login you own", t*0.5, cDim, cBright)
 	}
 	hint := ""
-	if t > 1.6 {
+	if t > introHint {
 		hint = sFaint.Render("press any key")
 	}
-	block := lipgloss.JoinVertical(lipgloss.Center, logo, "", tag, sub, "", hint)
+	full := []rune("still there?...")
+	idle := strings.Repeat(" ", len(full))
+	if t > introIdle {
+		n := min(len(full), int((t-introIdle)*introTagCPS*0.6))
+		idle = shimmerText(string(full[:n]), t*0.35, cFaint, cDim) + strings.Repeat(" ", len(full)-n)
+	}
+	block := lipgloss.JoinVertical(lipgloss.Center, logo, "", tag, sub, "", hint, "", idle)
 	return lipgloss.Place(m.w, m.h, lipgloss.Center, lipgloss.Center, block)
 }
 
