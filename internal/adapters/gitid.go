@@ -78,6 +78,53 @@ func RuleConditions(r config.Rule, goos string) []string {
 	return nil
 }
 
+// host and path of a remote url without scheme, user, port or .git
+func remoteHostPath(url string) string {
+	u := strings.TrimSpace(url)
+	if i := strings.Index(u, "://"); i >= 0 {
+		u = u[i+3:]
+		if at := strings.LastIndex(strings.SplitN(u, "/", 2)[0], "@"); at >= 0 {
+			u = u[at+1:]
+		}
+		host, rest, _ := strings.Cut(u, "/")
+		host, _, _ = strings.Cut(host, ":")
+		u = host + "/" + rest
+	} else if at := strings.Index(u, "@"); at >= 0 {
+		// scp form
+		host, rest, _ := strings.Cut(u[at+1:], ":")
+		u = host + "/" + rest
+	}
+	return strings.ToLower(strings.TrimSuffix(strings.TrimSuffix(u, "/"), ".git"))
+}
+
+// the same question the includeIf conditions answer, for cream doctor
+func RemoteMatches(r config.Rule, url string) bool {
+	if r.Kind != "remote" {
+		return false
+	}
+	hp, pat := remoteHostPath(url), strings.ToLower(strings.TrimSuffix(r.Pattern, "/"))
+	return hp == pat || strings.HasPrefix(hp, pat+"/")
+}
+
+func DirMatches(r config.Rule, repoDir, home, goos string) bool {
+	if r.Kind != "dir" {
+		return false
+	}
+	norm := func(p string) string {
+		p = strings.TrimSuffix(strings.ReplaceAll(p, `\`, "/"), "/")
+		if goos == "windows" || goos == "darwin" {
+			p = strings.ToLower(p)
+		}
+		return p
+	}
+	pat := r.Pattern
+	if pat == "~" || strings.HasPrefix(pat, "~/") || strings.HasPrefix(pat, `~\`) {
+		pat = home + pat[1:]
+	}
+	d, p := norm(repoDir), norm(pat)
+	return d == p || strings.HasPrefix(d, p+"/")
+}
+
 // fallback is the identity outside any rule, nil in strict mode
 func RenderBlock(env *adapter.Env, cfg *config.Config, fallback *config.Profile) string {
 	var b strings.Builder
@@ -231,7 +278,26 @@ func hasAnyRule(cfg *config.Config) bool {
 	return false
 }
 
+// locked profiles lose their rules and can't be the fallback, with everything locked no identity is left
+func unlockedView(cfg *config.Config, fallback *config.Profile) (*config.Config, *config.Profile) {
+	if !cfg.AnyLocked() {
+		return cfg, fallback
+	}
+	view := *cfg
+	view.Profiles = map[string]*config.Profile{}
+	for name, p := range cfg.Profiles {
+		if !cfg.Locked(name) {
+			view.Profiles[name] = p
+		}
+	}
+	if fallback != nil && cfg.Locked(fallback.Name) {
+		fallback = nil
+	}
+	return &view, fallback
+}
+
 func Sync(env *adapter.Env, cfg *config.Config, fallback *config.Profile, dryRun bool) ([]adapter.Change, error) {
+	cfg, fallback = unlockedView(cfg, fallback)
 	var changes []adapter.Change
 	for _, name := range cfg.Names() {
 		p := cfg.Profiles[name]

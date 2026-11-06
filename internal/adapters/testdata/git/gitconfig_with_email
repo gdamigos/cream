@@ -1,0 +1,8 @@
+[user]
+	name = Dev Personal
+	email = dev@home.example.com
+	signingkey = ~/.ssh/id_ed25519.pub
+[gpg]
+	format = ssh
+[core]
+	autocrlf = input

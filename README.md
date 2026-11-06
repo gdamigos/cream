@@ -27,6 +27,10 @@ Move Claude Code, Codex, GitHub, GitLab and your git identity between `work` and
 [![Go Reference](https://pkg.go.dev/badge/github.com/gdamigos/cream.svg)](https://pkg.go.dev/github.com/gdamigos/cream)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+<br><br>
+
+<img src="docs/demo.gif" alt="cream switching Claude Code, Codex, GitHub and the git identity from work to personal" width="900">
+
 </div>
 
 ---
@@ -44,6 +48,7 @@ With a work and a personal account, switching means logging out and back in to e
 - **Run one tool as another profile** in this terminal only: `cream run work claude`.
 - **Import once.** cream saves the login you have now, so you never log in twice.
 - **Git identity that follows you**, or rules that pick it per repo by folder or remote host.
+- **Lock mode.** `cream lock` logs every tool out and turns git identity off until `cream unlock`, for everything or one profile.
 - **Safe.** Secrets in your OS keyring, an encrypted backup before every change, rollback on failure, `--dry-run` everywhere, no telemetry.
 
 ## Install

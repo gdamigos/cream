@@ -10,94 +10,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/gdamigos/cream/internal/adapter"
-	"github.com/gdamigos/cream/internal/adapters"
-	"github.com/gdamigos/cream/internal/config"
-	"github.com/gdamigos/cream/internal/core"
-	"github.com/gdamigos/cream/internal/paths"
-	"github.com/gdamigos/cream/internal/testutil"
 	"github.com/gdamigos/cream/internal/vault"
 )
-
-func newModel(t *testing.T) (Model, *core.Manager) {
-	t.Helper()
-	home := t.TempDir()
-	p := paths.Paths{Home: home, CreamHome: filepath.Join(home, "cream")}
-	m, err := core.Open(core.Options{Paths: &p, Vault: vault.NewMemory(), Runner: testutil.NewFakeRunner(),
-		Adapters: []adapter.Adapter{adapters.Claude{}, adapters.Codex{}}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	m.Env.Getenv = func(string) string { return "" }
-	m.Env.GOOS = "linux" // file based logins on every host, macos would use the keychain
-	os.MkdirAll(filepath.Join(home, ".claude"), 0o700)
-	os.WriteFile(filepath.Join(home, ".claude", ".credentials.json"), []byte(`{"t":"SECRET"}`), 0o600)
-	os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"oauthAccount":{"emailAddress":"me@work.com"}}`), 0o600)
-	m.AddProfile("work", "day job", config.GitIdentity{Name: "W", Email: "w@co"})
-	m.AddProfile("personal", "", config.GitIdentity{})
-	md := New(m, Options{Version: "test", SkipIntro: true})
-	return md, m
-}
-
-func send(t *testing.T, md Model, msgs ...tea.Msg) Model {
-	t.Helper()
-	var cur tea.Model = md
-	for _, msg := range msgs {
-		var cmd tea.Cmd
-		cur, cmd = cur.Update(msg)
-		cur = drain(t, cur, cmd, 0)
-	}
-	return cur.(Model)
-}
-
-// runs commands synchronously and skips timers so async ops finish
-func drain(t *testing.T, cur tea.Model, cmd tea.Cmd, depth int) tea.Model {
-	if cmd == nil || depth > 50 {
-		return cur
-	}
-	done := make(chan tea.Msg, 1)
-	go func() { done <- cmd() }()
-	var msg tea.Msg
-	select {
-	case msg = <-done:
-	case <-time.After(150 * time.Millisecond):
-		return cur // timer tick
-	}
-	switch m := msg.(type) {
-	case nil:
-		return cur
-	case tea.BatchMsg:
-		for _, c := range m {
-			cur = drain(t, cur, c, depth+1)
-		}
-		return cur
-	case frameMsg:
-		return cur
-	}
-	if strings.Contains(strings.ToLower(typeName(msg)), "exec") {
-		return cur
-	}
-	next, c := cur.Update(msg)
-	return drain(t, next, c, depth+1)
-}
-
-func typeName(v any) string { return strings.TrimPrefix(strings.TrimPrefix(fmtType(v), "*"), "tui.") }
-
-func key(s string) tea.KeyMsg {
-	switch s {
-	case "enter":
-		return tea.KeyMsg{Type: tea.KeyEnter}
-	case "esc":
-		return tea.KeyMsg{Type: tea.KeyEsc}
-	case "tab":
-		return tea.KeyMsg{Type: tea.KeyTab}
-	case "down":
-		return tea.KeyMsg{Type: tea.KeyDown}
-	}
-	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
-}
-
-func plain(md Model) string { return ansi.Strip(md.View()) }
 
 func TestRendersAtManySizes(t *testing.T) {
 	md, _ := newModel(t)
@@ -295,6 +209,48 @@ func TestLoginInOtherTerminal(t *testing.T) {
 	send(t, md, key("y"))
 	if mgr.Cfg.Profiles["personal"] == nil || mgr.Cfg.Profiles["personal"].Accounts["claude"] != nil {
 		t.Fatal("forget did not drop only the claude account")
+	}
+}
+
+func TestLockAndUnlockKeys(t *testing.T) {
+	md, mgr := newModel(t)
+	if _, err := mgr.Import(ctxBG(), "work", nil, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	md = send(t, md, tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	// L on work locks just that profile
+	md = send(t, md, key("down"), key("L"))
+	if md.modal != modalConfirm || md.pend.kind != actLock || md.pend.profile != "work" {
+		t.Fatalf("expected a lock confirm for work, got %+v", md.pend)
+	}
+	md = send(t, md, key("y"), key("enter"))
+	if !mgr.Cfg.Locked("work") || mgr.Cfg.Lock.All {
+		t.Fatalf("lock state = %+v", mgr.Cfg.Lock)
+	}
+	if !strings.Contains(plain(md), "locked") {
+		t.Fatal("profile list doesn't show the lock")
+	}
+	// the switch preview is refused, so no confirm opens and the error shows as a toast
+	md = send(t, md, key("enter"))
+	if md.modal != modalNone || len(md.toasts) == 0 || !strings.Contains(md.toasts[len(md.toasts)-1].text, "locked") {
+		t.Fatalf("switching to a locked profile should be refused, modal %v toasts %+v", md.modal, md.toasts)
+	}
+
+	// L again unlocks it
+	md = send(t, md, key("L"))
+	if md.pend == nil || md.pend.kind != actUnlock {
+		t.Fatalf("expected an unlock confirm, got %+v", md.pend)
+	}
+	md = send(t, md, key("y"), key("enter"))
+	if mgr.Cfg.AnyLocked() {
+		t.Fatal("still locked")
+	}
+
+	// ctrl+l locks everything and shows the badge
+	md = send(t, md, tea.KeyMsg{Type: tea.KeyCtrlL}, key("y"), key("enter"))
+	if !mgr.Cfg.Lock.All || !strings.Contains(plain(md), "LOCKED") {
+		t.Fatal("everything lock or its badge missing")
 	}
 }
 

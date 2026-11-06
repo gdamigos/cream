@@ -1,16 +1,26 @@
-# build output
+# build output (a plain `go build` writes ./cream on macOS and Linux)
 /bin/
 /dist/
+/cream
 *.exe
 *.test
 *.out
 coverage.*
+*.prof
+*.pprof
+
+# local go workspaces
+go.work
+go.work.sum
 
 # private design notes and source art (the logo used by the app is internal/tui/logo.txt)
 /ASCII.txt
 *.pdf
 /MAINTAINER.md
 /CLAUDE.md
+
+# local scripts for recording the readme gif, docs/demo.gif itself is tracked
+/docs/demo/
 
 # local state if CREAM_HOME points inside the repo
 /.cream/
@@ -20,10 +30,12 @@ coverage.*
 # editors and OS
 .idea/
 .vscode/
+.vs/
 *.swp
 *~
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # local ai tool settings
 /.claude/settings.local.json

@@ -1,0 +1,12 @@
+# glab config with a comment that must survive
+git_protocol: ssh
+host: gitlab.company.com
+hosts:
+    gitlab.com:
+        token: glpat-HOME
+        api_protocol: https
+        user: me-home
+    gitlab.company.com:
+        token: glpat-WORK
+        api_protocol: https
+        user: me-work

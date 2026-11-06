@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 	"math"
-	"math/rand/v2"
 	"strings"
 	"time"
 
@@ -45,6 +44,8 @@ func (m Model) View() string {
 		box = m.viewHelp()
 	case modalResult:
 		box = m.viewResult()
+	case modalUpdate:
+		box = m.viewUpdate()
 	}
 	if box != "" {
 		base = overlay(base, box, m.w, m.h)
@@ -135,11 +136,14 @@ func (m Model) viewHeader() string {
 		activeStr+sFaint.Render("  ·  ")+sDim.Render(vaultLabel(m.mgr.Env.Vault.Backend())),
 	)
 	var badges []string
+	if m.mgr.Cfg.Lock.All {
+		badges = append(badges, sBadgeDry.Render("LOCKED"))
+	}
 	if m.dryRun {
 		badges = append(badges, sBadgeDry.Render("DRY RUN"))
 	}
 	if m.upd != nil && m.upd.Newer {
-		badges = append(badges, sBadgeUpd.Render("↑ "+m.upd.Latest))
+		badges = append(badges, sBadgeUpd.Render("↑ "+m.upd.Latest+" · U"))
 	}
 	leftPart := lipgloss.JoinHorizontal(lipgloss.Center, logo, "   ", info)
 	// in dry run the badge is the message, no splash text next to it
@@ -156,105 +160,6 @@ func (m Model) viewHeader() string {
 	gap := max(1, m.w-2-lipgloss.Width(leftPart)-lipgloss.Width(right))
 	row := lipgloss.JoinHorizontal(lipgloss.Center, leftPart, strings.Repeat(" ", gap), right)
 	return lipgloss.NewStyle().Padding(1, 1, 0, 1).Render(row)
-}
-
-// splash text
-var taglines = []string{
-	"one switch, every login",
-	"log in once, switch forever",
-	"no more logout, login, repeat",
-	"work and personal, never mixed",
-	"commits with the right email",
-	"undo is one key away",
-	"zero telemetry",
-	"now with 100% more cream!",
-	"not a dairy product",
-	"lactose free!",
-	"whipped, not stirred",
-	"the cream always rises",
-	"cream rules everything around me",
-	"spilled milk? cream restore",
-	"not affiliated with ice cream",
-	"best served chilled",
-	"works on my machine!",
-	"git blame says it wasn't you",
-	"it's not a bug, it's a profile",
-	"alt-tab, but for logins",
-	"also try cream run!",
-	"your other account misses you",
-	"one more profile won't hurt",
-	"press ? for help, we won't judge",
-	"tabs vs spaces?",
-	"handcrafted in a terminal",
-	"powered by coffee and Go",
-	"10/10 would switch again",
-	"less logging in, more shipping",
-	"the cream of credential managers",
-}
-
-const (
-	tagType  = 2.4 // seconds to type a phrase
-	tagHold  = 6.0
-	tagErase = 1.0
-	tagGap   = 0.8
-	tagCycle = tagType + tagHold + tagErase + tagGap
-)
-
-func taglineWidth() int {
-	w := 0
-	for _, s := range taglines {
-		w = max(w, len([]rune(s)))
-	}
-	return w + 1
-}
-
-// every pass over the list gets its own shuffle from the session seed, so rendering stays a pure function of time
-func taglineAt(seed, slot uint64) string {
-	n := len(taglines)
-	pass, i := slot/uint64(n), slot%uint64(n)
-	order := rand.New(rand.NewPCG(seed, pass)).Perm(n)
-	if pass > 0 {
-		// never show the same phrase twice in a row across a reshuffle
-		prev := rand.New(rand.NewPCG(seed, pass-1)).Perm(n)
-		if order[0] == prev[n-1] {
-			order[0], order[1] = order[1], order[0]
-		}
-	}
-	return taglines[order[i]]
-}
-
-// types a phrase, holds it, erases it, then moves to the next one
-func taglineText(seed uint64, t float64) (string, bool) {
-	phrase := []rune(taglineAt(seed, uint64(max(0, t)/tagCycle)))
-	p := math.Mod(t, tagCycle)
-	n := len(phrase)
-	typing := false
-	switch {
-	case p < tagType:
-		n = int(float64(len(phrase)) * p / tagType)
-		typing = true
-	case p < tagType+tagHold:
-	case p < tagType+tagHold+tagErase:
-		n = int(float64(len(phrase)) * (1 - (p-tagType-tagHold)/tagErase))
-	default:
-		n = 0
-	}
-	return string(phrase[:n]), typing
-}
-
-// padded to a fixed width so the header never jumps around
-func renderTagline(seed uint64, t float64) string {
-	s, typing := taglineText(seed, t)
-	out := ""
-	if s != "" {
-		out = paintGradient([]string{s}, t*0.05, 1)
-	}
-	if typing || math.Mod(t, 1) < 0.5 {
-		out += sHi.Render("▌")
-	} else {
-		out += " "
-	}
-	return strings.Repeat(" ", taglineWidth()-len([]rune(s))-1) + out
 }
 
 func (m Model) profileDot(name string) string {
@@ -297,6 +202,9 @@ func (m Model) viewProfiles(w, h int) string {
 		row := marker + m.profileDot(n) + " " + nameSt.Render(name)
 		if n == m.mgr.Cfg.Active {
 			row += " " + sOK.Render("active")
+		}
+		if m.mgr.Cfg.Locked(n) {
+			row += " " + sWarn.Render("locked")
 		}
 		accts := len(p.Accounts)
 		sub := fmt.Sprintf("%d/%d tools", accts, len(m.mgr.Adapters))
@@ -601,7 +509,7 @@ func (m Model) helpLine() string {
 	case m.focusRight && m.tab == tabBackups:
 		items = []kv{{"↑↓", "select"}, {"enter", "restore"}, {"←", "profiles"}, {"tab", "view"}}
 	default:
-		items = []kv{{"enter", "switch"}, {"r", "run"}, {"i", "import"}, {"n", "new"}, {"e", "edit"}, {"x", "delete"}, {"a", "rule"}, {"u", "undo"}, {"D", "dry-run"}, {"tab", "view"}}
+		items = []kv{{"enter", "switch"}, {"r", "run"}, {"i", "import"}, {"n", "new"}, {"e", "edit"}, {"x", "delete"}, {"a", "rule"}, {"L", "lock"}, {"u", "undo"}, {"D", "dry-run"}, {"tab", "view"}}
 	}
 	sep := sFaint.Render("  ·  ")
 	render := func(it kv) string { return sKey.Render(it.k) + " " + sKeyDesc.Render(it.v) }
@@ -625,100 +533,6 @@ func vaultLabel(backend string) string {
 		return "encrypted file vault"
 	}
 	return backend + " vault"
-}
-
-func (m Model) viewConfirm() string {
-	if m.pend == nil {
-		return ""
-	}
-	lines := []string{sAccent.Render(m.pend.title), ""}
-	for _, l := range m.pend.lines {
-		switch {
-		case strings.HasPrefix(l, "✓"), strings.HasPrefix(l, "●"):
-			lines = append(lines, sOK.Render(l[:len("✓")])+sBase.Render(l[len("✓"):]))
-		case strings.HasPrefix(l, "✗"):
-			lines = append(lines, sErr.Render(l))
-		case strings.HasPrefix(l, "○"):
-			lines = append(lines, sFaint.Render(l))
-		default:
-			lines = append(lines, sDim.Render(l))
-		}
-	}
-	lines = append(lines, "", sKey.Render("y")+sKeyDesc.Render(" confirm   ")+sKey.Render("n")+sKeyDesc.Render(" cancel"))
-	return sModal.Render(strings.Join(lines, "\n"))
-}
-
-func (m Model) viewRun() string {
-	p := m.selected()
-	name := ""
-	if p != nil {
-		name = p.Name
-	}
-	lines := []string{sAccent.Render("Run as " + name), sDim.Render("this terminal only · global state untouched"), ""}
-	for i, c := range m.runOpts {
-		if i == m.runCursor {
-			lines = append(lines, sHi.Render("▸ ")+sBold.Render(c.label))
-		} else {
-			lines = append(lines, "  "+sBase.Render(c.label))
-		}
-	}
-	lines = append(lines, "", sKey.Render("enter")+sKeyDesc.Render(" launch   ")+sKey.Render("esc")+sKeyDesc.Render(" cancel"))
-	return sModal.Render(strings.Join(lines, "\n"))
-}
-
-func (m Model) viewHelp() string {
-	rows := [][2]string{
-		{"↑/↓  j/k", "select profile"},
-		{"enter", "switch every tool to the profile (global)"},
-		{"→", "on Status: pick one tool, then enter or i act on it only"},
-		{"r", "run one tool as the profile, this terminal only"},
-		{"i", "import the currently logged-in accounts"},
-		{"n / e / x", "new / edit / delete profile"},
-		{"x on a tool", "forget the account the profile saved for it"},
-		{"a", "add a git identity rule (folder or remote host)"},
-		{"u", "undo: restore the latest backup"},
-		{"tab  1-3", "status · rules · backups"},
-		{"→ / ←", "move between profiles and the list on the right"},
-		{"D", "toggle dry-run (preview changes only)"},
-		{"R", "refresh now (also automatic every few seconds)"},
-		{"q", "quit"},
-	}
-	lines := []string{sAccent.Render("Keys"), ""}
-	for _, r := range rows {
-		lines = append(lines, sKey.Render(pad(r[0], 12))+sBase.Render(r[1]))
-	}
-	lines = append(lines, "", sFaint.Render("Every action is also a CLI command: cream --help"))
-	return sModal.Render(strings.Join(lines, "\n"))
-}
-
-func (m Model) viewResult() string {
-	r := m.result
-	if r == nil {
-		return ""
-	}
-	var lines []string
-	switch {
-	case r.err != nil:
-		lines = append(lines, sErr.Render("✗ "+firstLine(r.err.Error())))
-	case r.dry:
-		lines = append(lines, sWarn.Render("DRY RUN · ")+sAccent.Render(r.title), sDim.Render("nothing was changed; this is what would happen:"))
-	default:
-		lines = append(lines, sOK.Render("✓ ")+sAccent.Render(r.title))
-	}
-	if len(r.events) > 0 {
-		lines = append(lines, "")
-		for _, e := range r.events {
-			lines = append(lines, stepIcon(e.State, "·")+" "+sBold.Render(pad(e.Name, 14))+sDim.Render(truncate(e.Msg, 60)))
-		}
-	}
-	if len(r.changes) > 0 {
-		lines = append(lines, "")
-		for _, c := range r.changes {
-			lines = append(lines, sHi.Render("→ ")+sBold.Render(pad(c.Action, 8))+sFaint.Render(pad(c.Kind, 10))+sBase.Render(truncate(c.Target, 70)))
-		}
-	}
-	lines = append(lines, "", sFaint.Render("enter to close"))
-	return sModal.Render(strings.Join(lines, "\n"))
 }
 
 func pad(s string, n int) string {

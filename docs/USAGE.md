@@ -36,6 +36,8 @@ Run `cream` with no arguments.
 | `i` | save the accounts you are logged in to now into the profile |
 | `n` `e` `x` | new, edit or delete a profile (deleting also removes its saved logins) |
 | `a` | add a git identity rule (remote host or folder) |
+| `L` / `ctrl+l` | lock or unlock the selected profile / everything |
+| `U` | when a new version is out: the update command for how you installed cream (Scoop, Homebrew, `.deb`, `go install`), to copy, or the release page to open |
 | `u` | undo the last switch |
 | `tab` or `1` to `3` | Status, Rules and Backups tabs. Left and right move between the profile list and the tab. |
 | `D` | dry-run mode: every action only shows what it would change |
@@ -57,7 +59,10 @@ cream profile forget <name> --only claude[,…] --yes   drop saved logins, keep 
 cream import <profile> [--only claude,codex,github,gitlab,git] [--gitlab-host HOST]
 cream use <profile> [--only …]          switch every tool
 cream run <profile> <command> [args…]   run one tool as a profile, this terminal only
+cream lock [profile]                    log tools out on purpose and turn git identity off
+cream unlock [profile]                  put everything back
 cream status [--json]                   who is logged in to each tool
+cream doctor                            check every tool's setup and this repo's git identity
 cream rule add <profile> --remote HOST | --dir PATH
 cream rule list
 cream rule remove <profile> <n>
@@ -83,6 +88,18 @@ cream use work --only github,gitlab,git
 
 - `cream use work` changes every tool's login files, so every new terminal and editor uses `work`.
 - `cream run work claude` starts only that program as `work` and leaves everything else alone, so two accounts can run side by side. Put `--` before a command with its own flags: `cream run personal -- gh pr list`.
+
+## Doctor
+
+`cream doctor` checks that each tool is logged in as the active profile expects, that every saved account is still in the vault and that `~/.gitconfig` matches your rules. Run it inside a git repo and it also tells you which profile owns the repo, whether commits here use that profile's email, and whether any commits you haven't pushed yet carry the wrong one. Every problem comes with a fix. It changes nothing and exits with `1` when something is broken.
+
+## Lock mode
+
+`cream lock` logs Claude Code, Codex, gh and glab out and removes your git identity, so nothing can push or commit until `cream unlock`. Logins are saved to the vault first, so unlocking needs no new login.
+
+`cream lock work` only logs out the tools signed in as work's accounts and turns work's git rules off. `work` can't be switched to or run until `cream unlock work`, while other profiles keep working. Unlocking a profile never overwrites a login you made in the meantime.
+
+It's a guardrail against mistakes, not a security boundary, and sessions that are already running keep working until restarted.
 
 ## Undo
 

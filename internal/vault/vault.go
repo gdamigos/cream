@@ -157,6 +157,14 @@ func ProfileKey(profile, adapter string) string {
 	return "profile:" + profile + ":" + adapter
 }
 
+// scope is a profile name, or LockAll for cream lock without a profile
+func LockKey(scope, adapter string) string {
+	return "lock:" + scope + ":" + adapter
+}
+
+// not a valid profile name, so it can't collide with one
+const LockAll = "*"
+
 const BackupIdentityKey = "cream:backup-identity"
 
 func DeleteProfile(v Vault, profile string, adapters []string) {

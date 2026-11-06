@@ -1,0 +1,14 @@
+github.com:
+    users:
+        alice:
+            git_protocol: ssh
+    git_protocol: ssh
+    user: alice
+ghe.corp.example.com:
+    users:
+        alice-corp:
+            git_protocol: https
+        alice-admin:
+            git_protocol: https
+    git_protocol: https
+    user: alice-corp
