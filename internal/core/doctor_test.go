@@ -36,7 +36,7 @@ func TestDoctorWithRealGit(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}
-	m, r := newManager(t, []adapter.Adapter{adapters.Claude{}, adapters.GitIdentity{}})
+	m, r := newManager(t, []adapter.Adapter{adapters.Codex{}, adapters.GitIdentity{}})
 	r.Passthrough["git"] = true
 	m.Env.GOOS = runtime.GOOS // real paths from git, so real case rules
 	home, err := filepath.EvalSymlinks(m.Paths.Home)
@@ -53,8 +53,10 @@ func TestDoctorWithRealGit(t *testing.T) {
 	m.AddProfile("personal", "", config.GitIdentity{Name: "P", Email: "p@home"})
 	m.AddRule("work", config.Rule{Kind: "remote", Pattern: "gitlab.corp"}, false)
 	m.AddRule("personal", config.Rule{Kind: "dir", Pattern: filepath.Join(home, "personal")}, false)
-	loginClaude(t, m, "w@corp", "T")
-	m.Import(ctx, "work", []string{"claude"}, false, nil)
+	put(t, filepath.Join(m.Paths.Home, ".codex", "auth.json"), `{"OPENAI_API_KEY":"sk-T"}`)
+	if evs, err := m.Import(ctx, "work", []string{"codex"}, false, nil); err != nil || evs[0].State != Done {
+		t.Fatalf("import: %+v %v", evs, err)
+	}
 	if _, err := m.Use(ctx, "work", UseOptions{}, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -68,8 +70,8 @@ func TestDoctorWithRealGit(t *testing.T) {
 	}
 
 	// a saved account whose secret vanished from the vault
-	m.Env.Vault.Delete(vault.ProfileKey("work", "claude"))
-	if acc := findCheck(m.Doctor(ctx, ""), "accounts"); worst(acc) != CheckFail || !strings.Contains(acc[0].Fix, "cream import work --only claude") {
+	m.Env.Vault.Delete(vault.ProfileKey("work", "codex"))
+	if acc := findCheck(m.Doctor(ctx, ""), "accounts"); worst(acc) != CheckFail || !strings.Contains(acc[0].Fix, "cream import work --only codex") {
 		t.Fatalf("missing vault entry not caught: %+v", acc)
 	}
 
