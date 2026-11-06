@@ -44,6 +44,7 @@ func (m Model) viewRun() string {
 func (m Model) viewHelp() string {
 	rows := [][2]string{
 		{"↑/↓  j/k", "select profile"},
+		{"click", "select, click again to act, any key on screen works too"},
 		{"enter", "switch every tool to the profile (global)"},
 		{"→", "on Status: pick one tool, then enter or i act on it only"},
 		{"r", "run one tool as the profile, this terminal only"},

@@ -30,27 +30,57 @@ func (m Model) View() string {
 		return m.viewIntro()
 	}
 	base := m.viewMain()
-	var box string
-	switch m.modal {
-	case modalConfirm:
-		box = m.viewConfirm()
-	case modalForm:
-		if m.form != nil {
-			box = sModal.Render(m.form.View())
-		}
-	case modalRun:
-		box = m.viewRun()
-	case modalHelp:
-		box = m.viewHelp()
-	case modalResult:
-		box = m.viewResult()
-	case modalUpdate:
-		box = m.viewUpdate()
-	}
-	if box != "" {
+	if box := m.modalBox(); box != "" {
 		base = overlay(base, box, m.w, m.h)
 	}
 	return base
+}
+
+// the open window, drawn centred over the main view, mouse.go hit tests the same box
+func (m Model) modalBox() string {
+	switch m.modal {
+	case modalConfirm:
+		return m.viewConfirm()
+	case modalForm:
+		if m.form != nil {
+			return sModal.Render(m.form.View())
+		}
+	case modalRun:
+		return m.viewRun()
+	case modalHelp:
+		return m.viewHelp()
+	case modalResult:
+		return m.viewResult()
+	case modalUpdate:
+		return m.viewUpdate()
+	}
+	return ""
+}
+
+func leftWidth(w int) int { return max(26, min(36, w/3)) }
+
+// column widths of the status table for a panel content width w
+func statusCols(w int) (colTool, colLive, colProf int) {
+	colLive = max(18, (w-16)/2)
+	colProf = max(10, w-16-colLive-2)
+	return 14, colLive, colProf
+}
+
+// where the LIVE NOW cell sits in a status row, counted from the panel's content edge
+// a row is a 2 column marker, the tool name padded to colTool-2, two spaces, then the cell
+func liveCell(w int) (start, end int) {
+	colTool, colLive, _ := statusCols(w)
+	start = 2 + (colTool - 2) + 2
+	return start, start + colLive
+}
+
+// the backups that fit in h lines, scrolled so the cursor stays visible
+func backupWindow(h, cursor int) (start, limit int) {
+	limit = max(1, h-3)
+	if cursor >= limit {
+		start = cursor - limit + 1
+	}
+	return start, limit
 }
 
 // intro timeline in seconds
@@ -101,7 +131,7 @@ func (m Model) viewMain() string {
 	header := m.viewHeader()
 	footer := m.viewFooter()
 	bodyH := m.h - lipgloss.Height(header) - lipgloss.Height(footer)
-	leftW := max(26, min(36, m.w/3))
+	leftW := leftWidth(m.w)
 	rightW := m.w - leftW
 	left := m.viewProfiles(leftW, bodyH)
 	right := m.viewRight(rightW, bodyH)
@@ -259,13 +289,11 @@ func (m Model) viewStatus(w int) string {
 	if !m.statusLoaded {
 		return m.spin.View() + sDim.Render(" reading tool state…")
 	}
-	colTool, colLive := 16, max(18, (w-16)/2)
-	colProf := max(10, w-colTool-colLive-2)
+	colTool, colLive, colProf := statusCols(w)
 	selName := "profile"
 	if sel != nil {
 		selName = sel.Name
 	}
-	colTool -= 2
 	head := sFaint.Render("  " + pad("TOOL", colTool) + pad("LIVE NOW", colLive) + truncate(strings.ToUpper(selName), colProf))
 	lines := []string{head}
 	focused := m.focusRight && m.tab == tabStatus
@@ -411,11 +439,7 @@ func (m Model) viewBackups(h int) string {
 		return sDim.Render("No backups yet. One is taken automatically before every switch.")
 	}
 	lines := []string{sFaint.Render(pad("WHEN", 22) + "REASON")}
-	limit := max(1, h-3)
-	startIdx := 0
-	if m.rightCursor[tabBackups] >= limit {
-		startIdx = m.rightCursor[tabBackups] - limit + 1
-	}
+	startIdx, limit := backupWindow(h, m.rightCursor[tabBackups])
 	for i := startIdx; i < len(m.backups) && i < startIdx+limit; i++ {
 		b := m.backups[i]
 		row := pad(humanTime(b.Created), 22) + sDim.Render(b.Reason)
@@ -498,24 +522,30 @@ func stepIcon(s core.State, spin string) string {
 	return sFaint.Render("·")
 }
 
-func (m Model) helpLine() string {
-	type kv struct{ k, v string }
-	var items []kv
+type keyHint struct{ k, v string }
+
+// the footer's keys for the current focus, mouse.go makes the same list clickable
+func (m Model) footerHints() []keyHint {
 	switch {
 	case m.focusRight && m.tab == tabStatus:
-		items = []kv{{"↑↓", "tool"}, {"enter", "switch this tool"}, {"i", "import this tool"}, {"x", "forget"}, {"←", "profiles"}, {"tab", "view"}}
+		return []keyHint{{"↑↓", "tool"}, {"enter", "switch this tool"}, {"i", "import this tool"}, {"x", "forget"}, {"←", "profiles"}, {"tab", "view"}}
 	case m.focusRight && m.tab == tabRules:
-		items = []kv{{"↑↓", "select"}, {"x", "remove"}, {"a", "add"}, {"←", "profiles"}, {"tab", "view"}}
+		return []keyHint{{"↑↓", "select"}, {"x", "remove"}, {"a", "add"}, {"←", "profiles"}, {"tab", "view"}}
 	case m.focusRight && m.tab == tabBackups:
-		items = []kv{{"↑↓", "select"}, {"enter", "restore"}, {"←", "profiles"}, {"tab", "view"}}
-	default:
-		items = []kv{{"enter", "switch"}, {"r", "run"}, {"i", "import"}, {"n", "new"}, {"e", "edit"}, {"x", "delete"}, {"a", "rule"}, {"L", "lock"}, {"u", "undo"}, {"D", "dry-run"}, {"tab", "view"}}
+		return []keyHint{{"↑↓", "select"}, {"enter", "restore"}, {"←", "profiles"}, {"tab", "view"}}
 	}
+	return []keyHint{{"enter", "switch"}, {"r", "run"}, {"i", "import"}, {"n", "new"}, {"e", "edit"}, {"x", "delete"}, {"a", "rule"}, {"L", "lock"}, {"u", "undo"}, {"D", "dry-run"}, {"tab", "view"}}
+}
+
+// always shown at the end of the footer
+var footerTail = []keyHint{{"?", "help"}, {"q", "quit"}}
+
+func (m Model) helpLine() string {
 	sep := sFaint.Render("  ·  ")
-	render := func(it kv) string { return sKey.Render(it.k) + " " + sKeyDesc.Render(it.v) }
-	tail := render(kv{"?", "help"}) + sep + render(kv{"q", "quit"})
+	render := func(it keyHint) string { return sKey.Render(it.k) + " " + sKeyDesc.Render(it.v) }
+	tail := render(footerTail[0]) + sep + render(footerTail[1])
 	out := ""
-	for _, it := range items {
+	for _, it := range m.footerHints() {
 		next := render(it) + sep
 		if lipgloss.Width(out+next+tail) > m.w-2 {
 			break

@@ -28,6 +28,7 @@ Run `cream` with no arguments.
 | Key | What it does |
 | --- | --- |
 | up and down, `j` `k` or the mouse wheel | pick a profile |
+| click | select a profile, tab or row, and click the selected one again to do what `enter` does. Every key shown on screen is clickable too: the footer, the hints, the header badges and the buttons in windows. Empty space in a panel focuses it, so a click in the profile list takes you back to it. Clicking an account under LIVE NOW saves that login into the selected profile, like `i` on that tool. In a form, click a field to move to it. Click outside a window or form to close it. |
 | `enter` | switch every tool to the selected profile (shows a preview first) |
 | `→` then `enter` | on the Status tab, pick one tool and switch only that tool |
 | `→` then `i` | on the Status tab, pick one tool and save only that tool's current login |

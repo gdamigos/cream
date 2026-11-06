@@ -28,7 +28,9 @@ func formTheme() *huh.Theme {
 func (m Model) openProfileForm(kind formKind, p *config.Profile) (tea.Model, tea.Cmd) {
 	fd := &formData{kind: kind}
 	var fields []huh.Field
+	var titles []string
 	if kind == formNewProfile {
+		titles = append(titles, "Profile name")
 		fields = append(fields, huh.NewInput().Title("Profile name").Description("e.g. work, personal").Value(&fd.name).
 			Validate(func(s string) error {
 				if err := config.ValidateName(s); err != nil {
@@ -54,11 +56,12 @@ func (m Model) openProfileForm(kind formKind, p *config.Profile) (tea.Model, tea
 		}),
 		huh.NewInput().Title("Signing key (optional)").Value(&fd.gKey),
 	)
+	titles = append(titles, "Description", "Git user.name", "Git user.email", "Signing key (optional)")
 	title := "New profile"
 	if kind == formEditProfile {
 		title = "Edit " + p.Name
 	}
-	m.fdata = fd
+	m.fdata, m.formFields, m.formTitles = fd, fields, titles
 	m.form = huh.NewForm(huh.NewGroup(fields...).Title(title)).
 		WithTheme(formTheme()).WithWidth(min(60, max(30, m.w-12))).WithShowHelp(true)
 	m.modal = modalForm
@@ -71,8 +74,7 @@ func (m Model) openRuleForm(p *config.Profile) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	fd := &formData{kind: formRule, profile: p.Name, ruleKind: "remote"}
-	m.fdata = fd
-	m.form = huh.NewForm(huh.NewGroup(
+	fields := []huh.Field{
 		huh.NewSelect[string]().Title("Use "+p.Git.Email+" for repos…").Options(
 			huh.NewOption("with a remote on host", "remote"),
 			huh.NewOption("inside a folder", "dir"),
@@ -82,7 +84,10 @@ func (m Model) openRuleForm(p *config.Profile) (tea.Model, tea.Cmd) {
 				_, err := config.ValidateRule(config.Rule{Kind: fd.ruleKind, Pattern: s})
 				return err
 			}),
-	).Title("New identity rule · " + p.Name)).WithTheme(formTheme()).WithWidth(min(60, max(30, m.w-12)))
+	}
+	m.fdata, m.formFields, m.formTitles = fd, fields, []string{"Use " + p.Git.Email + " for repos", "Host or folder"}
+	m.form = huh.NewForm(huh.NewGroup(fields...).Title("New identity rule · " + p.Name)).
+		WithTheme(formTheme()).WithWidth(min(60, max(30, m.w-12)))
 	m.modal = modalForm
 	return m, m.form.Init()
 }

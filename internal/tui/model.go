@@ -167,13 +167,15 @@ type Model struct {
 	steps     []step
 	opCh      chan tea.Msg
 
-	modal     modalKind
-	pend      *pending
-	form      *huh.Form
-	fdata     *formData
-	runOpts   []runChoice
-	runCursor int
-	result    *opDoneMsg
+	modal modalKind
+	pend  *pending
+	form  *huh.Form
+	fdata *formData
+	formFields []huh.Field
+	formTitles []string
+	runOpts    []runChoice
+	runCursor  int
+	result     *opDoneMsg
 
 	toasts  []toast
 	upd     *update.Result
@@ -448,6 +450,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.intro = false
 			}
 			return m, nil
+		}
+		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+			return m.handleClick(msg.X, msg.Y)
 		}
 		if m.modal != modalNone {
 			return m, nil
