@@ -31,6 +31,7 @@ type Options struct {
 func Run(m *core.Manager, o Options) error {
 	p := tea.NewProgram(New(m, o), tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithReportFocus())
 	_, err := p.Run()
+	resetTitle()
 	return err
 }
 
@@ -167,10 +168,10 @@ type Model struct {
 	steps     []step
 	opCh      chan tea.Msg
 
-	modal modalKind
-	pend  *pending
-	form  *huh.Form
-	fdata *formData
+	modal      modalKind
+	pend       *pending
+	form       *huh.Form
+	fdata      *formData
 	formFields []huh.Field
 	formTitles []string
 	runOpts    []runChoice
@@ -181,6 +182,7 @@ type Model struct {
 	upd     *update.Result
 	inst    update.Install // how this binary was installed, filled when the update window opens
 	tagSeed uint64
+	title   string // last terminal title sent
 }
 
 func New(m *core.Manager, o Options) Model {
@@ -342,7 +344,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.toasts = kept
-		return m, tick()
+		m, cmd := m.syncTitle()
+		return m, tea.Batch(tick(), cmd)
 
 	case spinner.TickMsg:
 		var cmd tea.Cmd
