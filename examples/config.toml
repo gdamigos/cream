@@ -1,0 +1,78 @@
+# example cream config.toml with every setting, see docs/CONFIGURATION.md
+# cream writes this file itself at ~/.config/cream/config.toml, it never holds secrets
+
+version = 1
+active = "work"         # the profile used by `cream use`, set by cream
+update_check = true     # the only network call, at most once a day, only tells you about new versions
+log = true              # local activity log in cream.log, never contains secrets
+
+# the tools cream manages, remove one and cream ignores it everywhere
+adapters = ["claude", "codex", "github", "gitlab", "git"]
+
+[ui]
+intro = true            # the intro animation
+dynamic_title = true    # active profile and current action in the terminal tab title
+disabled_keys = []      # keys that do nothing on the main screen, e.g. ["x", "ctrl+l"]
+
+[vault]
+backend = "auto"        # auto, keyring or file
+
+[git]
+strict = true           # with rules, repos that match none of them can't commit
+
+# set by `cream lock` and cleared by `cream unlock`, don't edit by hand
+[lock]
+all = false
+profiles = []
+
+[profiles.work]
+description = "day job"
+color = "#4FB3A9"
+created = 2026-01-15T09:00:00Z
+
+[profiles.work.git]
+name = "Cream Work"
+email = "cream@company.example.com"
+signing_key = "~/.ssh/id_ed25519_work.pub"
+
+# repos under this folder commit as work
+[[profiles.work.rules]]
+kind = "dir"
+pattern = "~/work"
+
+# repos with a remote on this host commit as work
+[[profiles.work.rules]]
+kind = "remote"
+pattern = "gitlab.company.example.com"
+
+# labels of the saved logins, the logins themselves are in the vault
+[profiles.work.accounts.claude]
+label = "cream@company.example.com"
+imported = 2026-01-15T09:05:00Z
+
+[profiles.work.accounts.gitlab]
+label = "cream-work"
+host = "gitlab.company.example.com"
+imported = 2026-01-15T09:06:00Z
+
+[profiles.personal]
+description = "side projects"
+color = "#F1E3C3"
+created = 2026-01-15T09:10:00Z
+
+[profiles.personal.git]
+name = "Cream"
+email = "cream@example.com"
+
+[[profiles.personal.rules]]
+kind = "remote"
+pattern = "github.com/cream-example"
+
+[profiles.personal.accounts.codex]
+label = "cream@example.com"
+imported = 2026-01-15T09:12:00Z
+
+[profiles.personal.accounts.github]
+label = "cream-example"
+host = "github.com"
+imported = 2026-01-15T09:13:00Z

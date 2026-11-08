@@ -55,8 +55,11 @@ internal/backup           encrypted backups
 internal/update           the update check and install detection
 internal/testutil         fake runner and temporary environment for tests
 docs/                     guides and project policies
+examples/                 example config and scripts
 .github/                  CI, release workflows, scripts and templates
 ```
+
+Release packages only contain the files listed in `.goreleaser.yaml`. Anything users don't need goes in `.gitattributes` as `export-ignore` so it stays out of the source archives too.
 
 The CLI and the TUI do everything through `internal/core`, and neither calls an adapter directly. [How it works](HOW_IT_WORKS.md) lists every file each adapter touches.
 

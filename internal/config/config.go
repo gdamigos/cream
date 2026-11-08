@@ -25,6 +25,8 @@ type Config struct {
 	Active      string              `toml:"active"`
 	UpdateCheck *bool               `toml:"update_check,omitempty"`
 	Log         *bool               `toml:"log,omitempty"`
+	Adapters    []string            `toml:"adapters"` // tools cream manages, nil means every tool
+	UI          UIConfig            `toml:"ui"`
 	Vault       VaultConfig         `toml:"vault"`
 	Git         GitConfig           `toml:"git"`
 	Lock        LockState           `toml:"lock,omitempty"`
@@ -42,6 +44,12 @@ func (c *Config) Locked(profile string) bool {
 }
 
 func (c *Config) AnyLocked() bool { return c.Lock.All || len(c.Lock.Profiles) > 0 }
+
+type UIConfig struct {
+	Intro        bool     `toml:"intro"`
+	DynamicTitle bool     `toml:"dynamic_title"`
+	DisabledKeys []string `toml:"disabled_keys"`
+}
 
 type VaultConfig struct {
 	Backend string `toml:"backend"`
@@ -86,6 +94,7 @@ type Account struct {
 func New() *Config {
 	return &Config{
 		Version:  CurrentVersion,
+		UI:       UIConfig{Intro: true, DynamicTitle: true, DisabledKeys: []string{}},
 		Vault:    VaultConfig{Backend: "auto"},
 		Profiles: map[string]*Profile{},
 	}

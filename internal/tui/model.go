@@ -30,8 +30,8 @@ type Options struct {
 
 func Run(m *core.Manager, o Options) error {
 	p := tea.NewProgram(New(m, o), tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithReportFocus())
-	_, err := p.Run()
-	resetTitle()
+	final, err := p.Run()
+	resetTitle(final)
 	return err
 }
 

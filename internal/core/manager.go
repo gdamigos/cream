@@ -27,6 +27,7 @@ type Manager struct {
 	Adapters []adapter.Adapter
 	Backups  *backup.Store
 
+	all      []adapter.Adapter // every tool, Adapters keeps the ones config.toml enables
 	cfgStamp fileStamp
 }
 
@@ -80,11 +81,16 @@ func Open(o Options) (*Manager, error) {
 	if ads == nil {
 		ads = adapters.All()
 	}
+	enabled, err := enabledAdapters(ads, cfg)
+	if err != nil {
+		return nil, err
+	}
 	return &Manager{
 		Paths:    p,
 		Cfg:      cfg,
 		Env:      &adapter.Env{Paths: p, Vault: v, Run: r, Config: cfg},
-		Adapters: ads,
+		Adapters: enabled,
+		all:      ads,
 		Backups:  &backup.Store{Dir: p.BackupDir(), Vault: v},
 		cfgStamp: stampOf(p.ConfigFile()),
 	}, nil
@@ -108,7 +114,11 @@ func (m *Manager) ReloadIfChanged() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	m.Cfg, m.Env.Config, m.cfgStamp = cfg, cfg, st
+	enabled, err := enabledAdapters(m.all, cfg)
+	if err != nil {
+		return false, err
+	}
+	m.Cfg, m.Env.Config, m.cfgStamp, m.Adapters = cfg, cfg, st, enabled
 	return true, nil
 }
 

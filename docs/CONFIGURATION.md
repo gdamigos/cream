@@ -7,6 +7,12 @@ version = 1
 active = "work"
 update_check = true     # the only network call, at most once a day, only tells you about new versions
 log = true              # local activity log, never contains secrets
+adapters = ["claude", "codex", "github", "gitlab", "git"]
+
+[ui]
+intro = true
+dynamic_title = true
+disabled_keys = []
 
 [vault]
 backend = "auto"        # auto, keyring or file
@@ -27,12 +33,18 @@ pattern = "gitlab.company.com"
 label = "cream@company.com"
 ```
 
+A full example with every setting is in [`examples/config.toml`](../examples/config.toml).
+
 ## Settings
 
 | Setting | Default | What it does |
 | --- | --- | --- |
 | `update_check` | `true` | check GitHub for a newer version, at most once a day |
 | `log` | `true` | keep a local activity log in `cream.log` |
+| `adapters` | every tool | the tools cream manages. Remove one and cream ignores it everywhere: it is never switched, locked, backed up or checked. |
+| `ui.intro` | `true` | show the intro animation |
+| `ui.dynamic_title` | `true` | show the active profile and what cream is doing in the terminal tab title |
+| `ui.disabled_keys` | `[]` | keys that do nothing on the main screen, e.g. `["x", "ctrl+l"]`. They also leave the footer. |
 | `vault.backend` | `auto` | `auto` uses the OS keyring when there is one and the encrypted file otherwise. `keyring` and `file` force one. |
 | `git.strict` | `true` | once you have identity rules, repos that match none of them can't commit. Set it to `false` to keep the active profile as a fallback identity. With no rules the active profile is always the global identity. |
 | `lock.all`, `lock.profiles` | empty | set by `cream lock` and cleared by `cream unlock`. Don't edit them by hand, the saved logins are in the vault. |

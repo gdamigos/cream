@@ -528,13 +528,13 @@ type keyHint struct{ k, v string }
 func (m Model) footerHints() []keyHint {
 	switch {
 	case m.focusRight && m.tab == tabStatus:
-		return []keyHint{{"↑↓", "tool"}, {"enter", "switch this tool"}, {"i", "import this tool"}, {"x", "forget"}, {"←", "profiles"}, {"tab", "view"}}
+		return m.enabledHints([]keyHint{{"↑↓", "tool"}, {"enter", "switch this tool"}, {"i", "import this tool"}, {"x", "forget"}, {"←", "profiles"}, {"tab", "view"}})
 	case m.focusRight && m.tab == tabRules:
-		return []keyHint{{"↑↓", "select"}, {"x", "remove"}, {"a", "add"}, {"←", "profiles"}, {"tab", "view"}}
+		return m.enabledHints([]keyHint{{"↑↓", "select"}, {"x", "remove"}, {"a", "add"}, {"←", "profiles"}, {"tab", "view"}})
 	case m.focusRight && m.tab == tabBackups:
-		return []keyHint{{"↑↓", "select"}, {"enter", "restore"}, {"←", "profiles"}, {"tab", "view"}}
+		return m.enabledHints([]keyHint{{"↑↓", "select"}, {"enter", "restore"}, {"←", "profiles"}, {"tab", "view"}})
 	}
-	return []keyHint{{"enter", "switch"}, {"r", "run"}, {"i", "import"}, {"n", "new"}, {"e", "edit"}, {"x", "delete"}, {"a", "rule"}, {"L", "lock"}, {"u", "undo"}, {"D", "dry-run"}, {"tab", "view"}}
+	return m.enabledHints([]keyHint{{"enter", "switch"}, {"r", "run"}, {"i", "import"}, {"n", "new"}, {"e", "edit"}, {"x", "delete"}, {"a", "rule"}, {"L", "lock"}, {"u", "undo"}, {"D", "dry-run"}, {"tab", "view"}})
 }
 
 // always shown at the end of the footer
@@ -543,7 +543,11 @@ var footerTail = []keyHint{{"?", "help"}, {"q", "quit"}}
 func (m Model) helpLine() string {
 	sep := sFaint.Render("  ·  ")
 	render := func(it keyHint) string { return sKey.Render(it.k) + " " + sKeyDesc.Render(it.v) }
-	tail := render(footerTail[0]) + sep + render(footerTail[1])
+	var tails []string
+	for _, it := range m.enabledHints(footerTail) {
+		tails = append(tails, render(it))
+	}
+	tail := strings.Join(tails, sep)
 	out := ""
 	for _, it := range m.footerHints() {
 		next := render(it) + sep

@@ -180,7 +180,7 @@ func (m Model) headerLabels() []clickLabel {
 
 func (m Model) footerLabels() []clickLabel {
 	var out []clickLabel
-	for _, h := range append(m.footerHints(), footerTail...) {
+	for _, h := range append(m.footerHints(), m.enabledHints(footerTail)...) {
 		if k, ok := keyFor(h.k); ok {
 			out = append(out, label(h.k+" "+h.v, k))
 		}

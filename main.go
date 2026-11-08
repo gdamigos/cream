@@ -40,7 +40,7 @@ func main() {
 				DryRun:      a.DryRun,
 				UpdateCheck: a.UpdateCheckAllowed(m),
 				Checker:     a.UpdateChecker(m),
-				SkipIntro:   os.Getenv("CREAM_NO_INTRO") != "",
+				SkipIntro:   os.Getenv("CREAM_NO_INTRO") != "" || !m.Cfg.UI.Intro,
 			})
 		},
 	}

@@ -70,6 +70,9 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.keyDisabled(k.String()) {
+		return m, nil
+	}
 	if m.busy {
 		if k.String() == "q" {
 			return m, tea.Quit

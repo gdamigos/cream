@@ -73,7 +73,10 @@ func (m Model) modalTitle() string {
 
 // only sends the escape sequence when the title changed
 func (m Model) syncTitle() (Model, tea.Cmd) {
-	t := m.windowTitle()
+	t := ""
+	if m.mgr.Cfg.UI.DynamicTitle {
+		t = m.windowTitle()
+	}
 	if t == m.title {
 		return m, nil
 	}
@@ -82,4 +85,8 @@ func (m Model) syncTitle() (Model, tea.Cmd) {
 }
 
 // an empty title hands the tab back to the shell
-func resetTitle() { _, _ = os.Stdout.WriteString(ansi.SetWindowTitle("")) }
+func resetTitle(m tea.Model) {
+	if md, ok := m.(Model); ok && md.title != "" {
+		_, _ = os.Stdout.WriteString(ansi.SetWindowTitle(""))
+	}
+}

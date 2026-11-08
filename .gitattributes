@@ -2,3 +2,6 @@
 *.go text eol=lf diff=golang
 *.pdf binary
 *.png binary
+/examples export-ignore
+/.github export-ignore
+/.gitattributes export-ignore
