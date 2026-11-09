@@ -3,5 +3,4 @@
 *.pdf binary
 *.png binary
 /examples export-ignore
-/.github export-ignore
 /.gitattributes export-ignore
