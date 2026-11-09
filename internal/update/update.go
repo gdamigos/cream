@@ -1,4 +1,4 @@
-// the only network call in cream, keep it notify only and free of identifiers
+// the update check, keep it notify only and free of identifiers, the only other network call is the opt-in internal/usage
 package update
 
 import (

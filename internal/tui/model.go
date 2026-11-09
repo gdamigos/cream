@@ -161,6 +161,10 @@ type Model struct {
 	statusLoads  int // status reads in flight, config is only reloaded when zero
 	backups      []backup.Info
 	armed        armedHint // see click_twice.go
+	usage        []core.Usage
+	usageAt      time.Time
+	suggest      []core.Suggestion
+	suggested    map[string]bool // limits already toasted
 
 	busy      bool
 	busyLabel string
@@ -381,7 +385,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.rightCursor[tabStatus] >= len(m.status) {
 			m.rightCursor[tabStatus] = max(0, len(m.status)-1)
 		}
-		return m, nil
+		cmd := m.loadUsage()
+		return m, cmd
+
+	case usageMsg:
+		return m.gotUsage(msg), nil
 
 	case backupsMsg:
 		m.backups = msg

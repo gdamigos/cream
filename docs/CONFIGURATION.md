@@ -5,7 +5,9 @@ cream manages `~/.config/cream/config.toml` for you through its commands and the
 ```toml
 version = 1
 active = "work"
-update_check = true     # the only network call, at most once a day, only tells you about new versions
+update_check = true     # at most once a day, only tells you about new versions
+usage_check = false     # opt-in: ask Anthropic and OpenAI for your Claude Code and Codex plan usage
+stale_login_days = 30   # warn about saved logins not refreshed for this long, 0 turns it off
 log = true              # local activity log, never contains secrets
 adapters = ["claude", "codex", "github", "gitlab", "git"]
 
@@ -41,6 +43,8 @@ A full example with every setting is in [`examples/config.toml`](../examples/con
 | Setting | Default | What it does |
 | --- | --- | --- |
 | `update_check` | `true` | check GitHub for a newer version, at most once a day |
+| `usage_check` | `false` | ask Anthropic and OpenAI how much of their plan limits your saved Claude Code and Codex logins used, for `cream usage`, the UI and the switch hint on a rate limit. Sends each login's token to its own provider, see [SECURITY.md](SECURITY.md). |
+| `stale_login_days` | `30` | warn about a saved login of another profile that hasn't been refreshed for this many days. `0` turns the warning off. |
 | `log` | `true` | keep a local activity log in `cream.log` |
 | `adapters` | every tool | the tools cream manages. Remove one and cream ignores it everywhere: it is never switched, locked, backed up or checked. |
 | `ui.intro` | `true` | show the intro animation |

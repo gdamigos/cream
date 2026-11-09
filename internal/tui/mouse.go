@@ -135,7 +135,7 @@ type clickLabel struct {
 	text  string
 	key   tea.KeyMsg
 	focus focusTo
-	x     int 
+	x     int
 }
 
 func label(text string, k tea.KeyMsg) clickLabel { return clickLabel{text: text, key: k} }

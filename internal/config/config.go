@@ -24,6 +24,8 @@ type Config struct {
 	Version     int                 `toml:"version"`
 	Active      string              `toml:"active"`
 	UpdateCheck *bool               `toml:"update_check,omitempty"`
+	UsageCheck  bool                `toml:"usage_check,omitempty"` // off unless set, asks anthropic and openai for plan usage
+	StaleDays   *int                `toml:"stale_login_days,omitempty"`
 	Log         *bool               `toml:"log,omitempty"`
 	Adapters    []string            `toml:"adapters"` // tools cream manages, nil means every tool
 	UI          UIConfig            `toml:"ui"`
@@ -90,6 +92,16 @@ type Account struct {
 	Label    string    `toml:"label"` // email or username, never a token
 	Host     string    `toml:"host,omitempty"`
 	Imported time.Time `toml:"imported"`
+	// when the tool itself last refreshed the login, zero when the tool doesn't record it
+	Refreshed time.Time `toml:"refreshed,omitempty"`
+}
+
+// the best guess of when the saved login was last refreshed, sync moves Imported on every real refresh
+func (a *Account) LastRefresh() time.Time {
+	if !a.Refreshed.IsZero() {
+		return a.Refreshed
+	}
+	return a.Imported
 }
 
 func New() *Config {
@@ -146,6 +158,14 @@ func (c *Config) UpdateCheckEnabled() bool { return c.UpdateCheck == nil || *c.U
 func (c *Config) LogEnabled() bool { return c.Log == nil || *c.Log }
 
 func (c *Config) GitStrict() bool { return c.Git.Strict == nil || *c.Git.Strict }
+
+// days after which a saved login counts as stale, 0 turns the warning off
+func (c *Config) StaleLoginDays() int {
+	if c.StaleDays == nil {
+		return 30
+	}
+	return max(0, *c.StaleDays)
+}
 
 var nameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,31}$`)
 

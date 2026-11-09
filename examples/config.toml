@@ -3,8 +3,10 @@
 
 version = 1
 active = "work"         # the profile used by `cream use`, set by cream
-update_check = true     # the only network call, at most once a day, only tells you about new versions
-log = true              # local activity log in cream.log, never contains secrets
+update_check = true     # at most once a day, only tells you about new versions
+usage_check = false     # opt-in: ask Anthropic and OpenAI for your Claude Code and Codex plan usage
+stale_login_days = 30   # warn about saved logins not refreshed for this long, 0 turns it off
+log = true             # local activity log in cream.log, never contains secrets
 
 # the tools cream manages, remove one and cream ignores it everywhere
 adapters = ["claude", "codex", "github", "gitlab", "git"]
@@ -72,6 +74,7 @@ pattern = "github.com/cream-example"
 [profiles.personal.accounts.codex]
 label = "cream@example.com"
 imported = 2026-01-15T09:12:00Z
+refreshed = 2026-01-14T18:00:00Z  # when codex last refreshed this login, set by cream
 
 [profiles.personal.accounts.github]
 label = "cream-example"

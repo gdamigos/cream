@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gdamigos/cream/internal/adapters"
 	"github.com/gdamigos/cream/internal/config"
@@ -87,6 +88,10 @@ func (m *Manager) Doctor(ctx context.Context, dir string) []Check {
 	}
 	if !slices.ContainsFunc(out, func(c Check) bool { return c.Area == "accounts" }) {
 		add(Check{Area: "accounts", Name: "vault", State: CheckOK, Msg: "every saved account is in the " + m.Env.Vault.Backend()})
+	}
+	now := time.Now()
+	for _, s := range m.StaleLogins(now) {
+		add(Check{Area: "accounts", Name: s.Profile + " · " + s.Name, State: CheckWarn, Msg: s.Msg(now), Fix: s.Fix()})
 	}
 
 	out = append(out, m.doctorGit(ctx)...)

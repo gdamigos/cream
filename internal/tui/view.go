@@ -388,6 +388,7 @@ func (m Model) profileCard(p *config.Profile, w int) string {
 	if !newest.IsZero() {
 		rows = append(rows, label("last import")+sBase.Render(humanTime(newest)))
 	}
+	rows = append(rows, m.usageRows(p, label)...)
 	if !p.Created.IsZero() {
 		rows = append(rows, label("created")+sDim.Render(p.Created.Local().Format("2006-01-02")))
 	}
@@ -534,7 +535,11 @@ func (m Model) footerHints() []keyHint {
 	case m.focusRight && m.tab == tabBackups:
 		return m.enabledHints([]keyHint{{"↑↓", "select"}, {"enter", "restore"}, {"←", "profiles"}, {"tab", "view"}})
 	}
-	return m.enabledHints([]keyHint{{"enter", "switch"}, {"r", "run"}, {"i", "import"}, {"n", "new"}, {"e", "edit"}, {"x", "delete"}, {"a", "rule"}, {"L", "lock"}, {"u", "undo"}, {"D", "dry-run"}, {"tab", "view"}})
+	hints := []keyHint{{"enter", "switch"}, {"r", "run"}, {"i", "import"}, {"n", "new"}, {"e", "edit"}, {"x", "delete"}, {"a", "rule"}, {"L", "lock"}, {"u", "undo"}, {"D", "dry-run"}, {"tab", "view"}}
+	if len(m.suggest) > 0 {
+		hints = append([]keyHint{{"S", "switch " + m.suggest[0].Name + " to " + m.suggest[0].To}}, hints...)
+	}
+	return m.enabledHints(hints)
 }
 
 // always shown at the end of the footer

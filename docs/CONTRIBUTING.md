@@ -71,7 +71,7 @@ Tests live next to the code they test, as Go expects: `claude.go` is tested in `
 - **Add tests** for behaviour you change. `testutil.NewEnv` gives you a temporary home, a fake runner and an in-memory vault.
 - **Test it for real** with a throwaway `CREAM_HOME`, not just in the tests.
 - **Follow the safety rules.** They are not optional:
-  - no new network calls and no telemetry of any kind
+  - no new network calls and no telemetry of any kind (the update check and the opt-in usage check are the only ones)
   - secrets never go in command arguments, logs, normal output or `config.toml`
   - every file write goes through `fsutil.WriteFileAtomic`
   - every file an adapter touches is listed in its `Files()` so it gets backed up, and in [how it works](HOW_IT_WORKS.md)
