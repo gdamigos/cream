@@ -73,7 +73,7 @@ cream version [--check]                 show the version, --check asks GitHub fo
 cream completion bash|zsh|fish|powershell
 ```
 
-Exit codes are `0` for success and `1` for an error. `cream run` returns the exit code of the program it ran.
+Exit codes are `0` for success and `1` for an error. `cream run` returns the exit code of the program it ran. [`examples/shell`](../examples/shell) has prompt helpers for bash, zsh, fish and PowerShell that show the profile owning the repo you're in and can run `claude`, `gh` and the rest as that profile. [`examples/scripts`](../examples/scripts) has scripts built on `status --json`, `use` and `run`.
 
 ## Switching only some tools
 
