@@ -42,6 +42,8 @@ func (p Paths) VaultFile() string { return filepath.Join(p.CreamHome, "vault.age
 
 func (p Paths) UpdateCache() string { return filepath.Join(p.CreamHome, "update-check.json") }
 
+func (p Paths) UsageCache() string { return filepath.Join(p.CreamHome, "usage.json") }
+
 func (p Paths) LogFile() string { return filepath.Join(p.CreamHome, "cream.log") }
 
 func (p Paths) InHome(elem ...string) string {

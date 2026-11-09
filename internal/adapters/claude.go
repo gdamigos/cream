@@ -193,6 +193,37 @@ func (c Claude) loadSecret(env *adapter.Env, p *config.Profile) (*claudeSecret, 
 	return &sec, nil
 }
 
+func (c Claude) UsageLogin(ctx context.Context, env *adapter.Env, p *config.Profile, live bool) (string, string, error) {
+	var creds string
+	if live {
+		s, ok, err := c.readCredentials(ctx, env)
+		if err != nil || !ok {
+			return "", "", errors.Join(errors.New("not logged in"), err)
+		}
+		creds = s
+	} else {
+		sec, err := c.loadSecret(env, p)
+		if err != nil {
+			return "", "", err
+		}
+		creds = sec.Credentials
+	}
+	var f struct {
+		OAuth struct {
+			AccessToken string `json:"accessToken"`
+			ExpiresAt   int64  `json:"expiresAt"`
+		} `json:"claudeAiOauth"`
+	}
+	if json.Unmarshal([]byte(creds), &f) != nil || f.OAuth.AccessToken == "" {
+		return "", "", adapter.SkipError{Reason: "no Claude subscription login"}
+	}
+	// claude refreshes the token when it runs, cream never does
+	if f.OAuth.ExpiresAt > 0 && time.UnixMilli(f.OAuth.ExpiresAt).Before(time.Now()) {
+		return "", "", adapter.SkipError{Reason: "saved token expired, it refreshes the next time Claude Code runs as " + p.Name}
+	}
+	return f.OAuth.AccessToken, "", nil
+}
+
 func (c Claude) loginChanges(env *adapter.Env, action string) []adapter.Change {
 	var changes []adapter.Change
 	if c.useKeychain(env) {

@@ -28,6 +28,7 @@ Run `cream` with no arguments.
 | Key | What it does |
 | --- | --- |
 | up and down, `j` `k` or the mouse wheel | pick a profile |
+| click | select a profile, tab or row, and click the selected one again to do what `enter` does. Every key shown on screen is clickable too: the footer, the hints, the header badges and the buttons in windows. The first click puts a box around the key and a second click runs it ([`ui.click_twice`](CONFIGURATION.md)). Empty space in a panel focuses it, so a click in the profile list takes you back to it. Clicking an account under LIVE NOW saves that login into the selected profile, like `i` on that tool. In a form, click a field to move to it. Click outside a window or form to close it. |
 | `enter` | switch every tool to the selected profile (shows a preview first) |
 | `→` then `enter` | on the Status tab, pick one tool and switch only that tool |
 | `→` then `i` | on the Status tab, pick one tool and save only that tool's current login |
@@ -37,6 +38,7 @@ Run `cream` with no arguments.
 | `n` `e` `x` | new, edit or delete a profile (deleting also removes its saved logins) |
 | `a` | add a git identity rule (remote host or folder) |
 | `L` / `ctrl+l` | lock or unlock the selected profile / everything |
+| `S` | with the [usage check](#usage-and-stale-logins) on, switch a tool that hit its plan limit to the profile with the most room left (shows a preview first) |
 | `U` | when a new version is out: the update command for how you installed cream (Scoop, Homebrew, `.deb`, `go install`), to copy, or the release page to open |
 | `u` | undo the last switch |
 | `tab` or `1` to `3` | Status, Rules and Backups tabs. Left and right move between the profile list and the tab. |
@@ -62,6 +64,7 @@ cream run <profile> <command> [args…]   run one tool as a profile, this termin
 cream lock [profile]                    log tools out on purpose and turn git identity off
 cream unlock [profile]                  put everything back
 cream status [--json]                   who is logged in to each tool
+cream usage [--json]                    plan usage of the saved Claude Code and Codex logins (needs usage_check)
 cream doctor                            check every tool's setup and this repo's git identity
 cream rule add <profile> --remote HOST | --dir PATH
 cream rule list
@@ -72,7 +75,7 @@ cream version [--check]                 show the version, --check asks GitHub fo
 cream completion bash|zsh|fish|powershell
 ```
 
-Exit codes are `0` for success and `1` for an error. `cream run` returns the exit code of the program it ran.
+Exit codes are `0` for success and `1` for an error. `cream run` returns the exit code of the program it ran. [`examples/shell`](../examples/shell) has prompt helpers for bash, zsh, fish and PowerShell that show the profile owning the repo you're in and can run `claude`, `gh` and the rest as that profile. [`examples/scripts`](../examples/scripts) has scripts built on `status --json`, `use` and `run`.
 
 ## Switching only some tools
 
@@ -88,6 +91,12 @@ cream use work --only github,gitlab,git
 
 - `cream use work` changes every tool's login files, so every new terminal and editor uses `work`.
 - `cream run work claude` starts only that program as `work` and leaves everything else alone, so two accounts can run side by side. Put `--` before a command with its own flags: `cream run personal -- gh pr list`.
+
+## Usage and stale logins
+
+A saved login that hasn't been refreshed for 30 days may have expired, so `cream status`, `cream doctor` and the profile card in the UI warn about it. Switch to the profile and run the tool once, or log in again and `cream import`. The active profile is skipped, its tools refresh their own logins. Change the number of days with [`stale_login_days`](CONFIGURATION.md).
+
+With `usage_check = true`, cream also asks Anthropic and OpenAI how much of their plan limits your saved Claude Code and Codex logins used (see [SECURITY.md](SECURITY.md)). `cream usage` lists it, and the profile card shows it. When the tool you are logged in to hits its limit, `cream status` prints the command that switches it to the profile with the most room left, and in the UI a message tells you, and `S` switches it. Nothing switches by itself. A saved login whose token expired shows no usage until the tool runs as that profile again.
 
 ## Doctor
 

@@ -30,7 +30,8 @@ type Options struct {
 
 func Run(m *core.Manager, o Options) error {
 	p := tea.NewProgram(New(m, o), tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithReportFocus())
-	_, err := p.Run()
+	final, err := p.Run()
+	resetTitle(final)
 	return err
 }
 
@@ -159,6 +160,11 @@ type Model struct {
 	statusLoaded bool
 	statusLoads  int // status reads in flight, config is only reloaded when zero
 	backups      []backup.Info
+	armed        armedHint // see click_twice.go
+	usage        []core.Usage
+	usageAt      time.Time
+	suggest      []core.Suggestion
+	suggested    map[string]bool // limits already toasted
 
 	busy      bool
 	busyLabel string
@@ -167,18 +173,21 @@ type Model struct {
 	steps     []step
 	opCh      chan tea.Msg
 
-	modal     modalKind
-	pend      *pending
-	form      *huh.Form
-	fdata     *formData
-	runOpts   []runChoice
-	runCursor int
-	result    *opDoneMsg
+	modal      modalKind
+	pend       *pending
+	form       *huh.Form
+	fdata      *formData
+	formFields []huh.Field
+	formTitles []string
+	runOpts    []runChoice
+	runCursor  int
+	result     *opDoneMsg
 
 	toasts  []toast
 	upd     *update.Result
 	inst    update.Install // how this binary was installed, filled when the update window opens
 	tagSeed uint64
+	title   string // last terminal title sent
 }
 
 func New(m *core.Manager, o Options) Model {
@@ -340,7 +349,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.toasts = kept
-		return m, tick()
+		m, cmd := m.syncTitle()
+		return m, tea.Batch(tick(), cmd)
 
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -375,7 +385,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.rightCursor[tabStatus] >= len(m.status) {
 			m.rightCursor[tabStatus] = max(0, len(m.status)-1)
 		}
-		return m, nil
+		cmd := m.loadUsage()
+		return m, cmd
+
+	case usageMsg:
+		return m.gotUsage(msg), nil
 
 	case backupsMsg:
 		m.backups = msg
@@ -449,6 +463,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
+		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+			return m.handleClick(msg.X, msg.Y)
+		}
 		if m.modal != modalNone {
 			return m, nil
 		}
@@ -468,6 +485,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.intro = false
 			return m, nil
 		}
+		m.armed = armedHint{}
 		return m.handleKey(msg)
 	}
 

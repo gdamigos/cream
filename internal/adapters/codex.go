@@ -124,7 +124,44 @@ func (c Codex) Import(ctx context.Context, env *adapter.Env, p *config.Profile) 
 	if label == "" {
 		label = "codex account"
 	}
-	return &config.Account{Label: label, Imported: time.Now().UTC().Truncate(time.Second)}, nil
+	return &config.Account{Label: label, Imported: time.Now().UTC().Truncate(time.Second), Refreshed: codexRefreshed(b)}, nil
+}
+
+// last_refresh is written by codex itself each time it refreshes the login
+func codexRefreshed(authJSON []byte) time.Time {
+	var a struct {
+		LastRefresh time.Time `json:"last_refresh"`
+	}
+	if json.Unmarshal(authJSON, &a) != nil {
+		return time.Time{}
+	}
+	return a.LastRefresh.UTC().Truncate(time.Second)
+}
+
+func (c Codex) UsageLogin(ctx context.Context, env *adapter.Env, p *config.Profile, live bool) (string, string, error) {
+	var b []byte
+	var err error
+	if live {
+		var ok bool
+		if b, ok, err = fsutil.ReadFileIfExists(codexAuth(env)); err == nil && !ok {
+			err = errors.New("not logged in")
+		}
+	} else {
+		b, err = c.load(env, p)
+	}
+	if err != nil {
+		return "", "", err
+	}
+	var a struct {
+		Tokens *struct {
+			AccessToken string `json:"access_token"`
+			AccountID   string `json:"account_id"`
+		} `json:"tokens"`
+	}
+	if json.Unmarshal(b, &a) != nil || a.Tokens == nil || a.Tokens.AccessToken == "" {
+		return "", "", adapter.SkipError{Reason: "API key logins have no plan usage"}
+	}
+	return a.Tokens.AccessToken, a.Tokens.AccountID, nil
 }
 
 func (c Codex) load(env *adapter.Env, p *config.Profile) ([]byte, error) {

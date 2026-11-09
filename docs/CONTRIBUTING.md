@@ -55,8 +55,11 @@ internal/backup           encrypted backups
 internal/update           the update check and install detection
 internal/testutil         fake runner and temporary environment for tests
 docs/                     guides and project policies
+examples/                 example config and scripts
 .github/                  CI, release workflows, scripts and templates
 ```
+
+Release packages only contain the files listed in `.goreleaser.yaml`. Anything users don't need goes in `.gitattributes` as `export-ignore` so it stays out of the source archives too.
 
 The CLI and the TUI do everything through `internal/core`, and neither calls an adapter directly. [How it works](HOW_IT_WORKS.md) lists every file each adapter touches.
 
@@ -68,7 +71,7 @@ Tests live next to the code they test, as Go expects: `claude.go` is tested in `
 - **Add tests** for behaviour you change. `testutil.NewEnv` gives you a temporary home, a fake runner and an in-memory vault.
 - **Test it for real** with a throwaway `CREAM_HOME`, not just in the tests.
 - **Follow the safety rules.** They are not optional:
-  - no new network calls and no telemetry of any kind
+  - no new network calls and no telemetry of any kind (the update check and the opt-in usage check are the only ones)
   - secrets never go in command arguments, logs, normal output or `config.toml`
   - every file write goes through `fsutil.WriteFileAtomic`
   - every file an adapter touches is listed in its `Files()` so it gets backed up, and in [how it works](HOW_IT_WORKS.md)

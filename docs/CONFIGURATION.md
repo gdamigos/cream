@@ -5,8 +5,17 @@ cream manages `~/.config/cream/config.toml` for you through its commands and the
 ```toml
 version = 1
 active = "work"
-update_check = true     # the only network call, at most once a day, only tells you about new versions
+update_check = true     # at most once a day, only tells you about new versions
+usage_check = false     # opt-in: ask Anthropic and OpenAI for your Claude Code and Codex plan usage
+stale_login_days = 30   # warn about saved logins not refreshed for this long, 0 turns it off
 log = true              # local activity log, never contains secrets
+adapters = ["claude", "codex", "github", "gitlab", "git"]
+
+[ui]
+intro = true
+dynamic_title = true
+disabled_keys = []
+click_twice = true
 
 [vault]
 backend = "auto"        # auto, keyring or file
@@ -27,12 +36,21 @@ pattern = "gitlab.company.com"
 label = "cream@company.com"
 ```
 
+A full example with every setting is in [`examples/config.toml`](../examples/config.toml).
+
 ## Settings
 
 | Setting | Default | What it does |
 | --- | --- | --- |
 | `update_check` | `true` | check GitHub for a newer version, at most once a day |
+| `usage_check` | `false` | ask Anthropic and OpenAI how much of their plan limits your saved Claude Code and Codex logins used, for `cream usage`, the UI and the switch hint on a rate limit. Sends each login's token to its own provider, see [SECURITY.md](SECURITY.md). |
+| `stale_login_days` | `30` | warn about a saved login of another profile that hasn't been refreshed for this many days. `0` turns the warning off. |
 | `log` | `true` | keep a local activity log in `cream.log` |
+| `adapters` | every tool | the tools cream manages. Remove one and cream ignores it everywhere: it is never switched, locked, backed up or checked. |
+| `ui.intro` | `true` | show the intro animation |
+| `ui.dynamic_title` | `true` | show the active profile and what cream is doing in the terminal tab title |
+| `ui.disabled_keys` | `[]` | keys that do nothing on the main screen, e.g. `["x", "ctrl+l"]`. They also leave the footer. |
+| `ui.click_twice` | `true` | clicking a key shown on screen puts a box around it and a second click runs it. Set it to `false` to run it on the first click. |
 | `vault.backend` | `auto` | `auto` uses the OS keyring when there is one and the encrypted file otherwise. `keyring` and `file` force one. |
 | `git.strict` | `true` | once you have identity rules, repos that match none of them can't commit. Set it to `false` to keep the active profile as a fallback identity. With no rules the active profile is always the global identity. |
 | `lock.all`, `lock.profiles` | empty | set by `cream lock` and cleared by `cream unlock`. Don't edit them by hand, the saved logins are in the vault. |

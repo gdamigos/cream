@@ -44,6 +44,7 @@ func (m Model) viewRun() string {
 func (m Model) viewHelp() string {
 	rows := [][2]string{
 		{"↑/↓  j/k", "select profile"},
+		{"click", "select, click again to act, any key on screen works too"},
 		{"enter", "switch every tool to the profile (global)"},
 		{"→", "on Status: pick one tool, then enter or i act on it only"},
 		{"r", "run one tool as the profile, this terminal only"},
@@ -53,6 +54,7 @@ func (m Model) viewHelp() string {
 		{"a", "add a git identity rule (folder or remote host)"},
 		{"L / ctrl+l", "lock or unlock the profile / everything"},
 		{"U", "how to update, when a new version is out"},
+		{"S", "switch a tool at its plan limit to a profile with room (usage_check)"},
 		{"u", "undo: restore the latest backup"},
 		{"tab  1-3", "status · rules · backups"},
 		{"→ / ←", "move between profiles and the list on the right"},

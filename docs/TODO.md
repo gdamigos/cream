@@ -9,8 +9,6 @@ Ideas and known problems in no particular ((execution)) order.
 - [ ] SSH keys per profile (host aliases in `~/.ssh/config`, loaded into ssh-agent)
 - [ ] Adapters for Gemini CLI, GitHub Copilot CLI and OpenCode
 - [ ] API key profiles (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, ...) with `cream env work`
-- [ ] Warnings before tokens expire
-- [ ] Claude Code and Codex usage display, and switching accounts on a rate limit
 - [ ] Per-folder `.cream` files that pick a profile
 - [ ] npm and PyPI tokens
 - [ ] Cloud CLIs: AWS, gcloud, Azure, kubectl
@@ -20,7 +18,6 @@ Ideas and known problems in no particular ((execution)) order.
 - [ ] apt repository
 - [ ] macOS notarisation and Windows code signing
 - [ ] CI coverage for the real keyring backends on macOS and Linux Secret Service
-- [ ] Check with a network monitor that cream makes no request besides the update check
 - [ ] User-defined adapters
 
 ## Bugs

@@ -65,6 +65,7 @@ func (a *App) printStatus(ctx context.Context, m *core.Manager, notify bool) err
 			a.printf("    %s\n", sWarn.Render("! "+r.Live.Warning))
 		}
 	}
+	a.printWarnings(ctx, m)
 	if notify && a.UpdateCheckAllowed(m) {
 		ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
@@ -85,14 +86,23 @@ func (a *App) printStatusJSON(ctx context.Context, m *core.Manager) error {
 		Match     bool   `json:"match"`
 		Warning   string `json:"warning,omitempty"`
 	}
+	type stale struct {
+		Profile   string    `json:"profile"`
+		Adapter   string    `json:"adapter"`
+		Refreshed time.Time `json:"refreshed"`
+	}
 	out := struct {
 		Active   string           `json:"active"`
 		Vault    string           `json:"vault"`
 		Locked   config.LockState `json:"locked"`
 		Adapters []row            `json:"adapters"`
-	}{Active: m.Cfg.Active, Vault: m.Env.Vault.Backend(), Locked: m.Cfg.Lock}
+		Stale    []stale          `json:"stale"`
+	}{Active: m.Cfg.Active, Vault: m.Env.Vault.Backend(), Locked: m.Cfg.Lock, Stale: []stale{}}
 	for _, r := range m.Status(ctx) {
 		out.Adapters = append(out.Adapters, row{r.ID, r.Live.Installed, r.Live.LoggedIn, r.Live.Account, r.Expected, r.Match, r.Live.Warning})
+	}
+	for _, s := range m.StaleLogins(time.Now()) {
+		out.Stale = append(out.Stale, stale{s.Profile, s.Adapter, s.Since})
 	}
 	enc := json.NewEncoder(a.Out)
 	enc.SetIndent("", "  ")

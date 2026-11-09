@@ -24,6 +24,7 @@ Everything lives in **`~/.config/cream/`** on every OS. You can move it with `CR
 ├── sessions/<profile>/  separate homes for `cream run`
 ├── vault.age            only when there is no OS keyring
 ├── update-check.json    the last update check result
+├── usage.json           the last usage check results, no tokens (only with usage_check = true)
 └── cream.log            a local activity log without secrets
 ```
 
@@ -79,4 +80,4 @@ If you also set `user.email` in your own `~/.gitconfig`, it defeats strict mode 
 
 ## Network and privacy
 
-No telemetry and nothing in the background. The only network call is an optional daily update check, and cream never talks to Anthropic, OpenAI, GitHub or GitLab itself. Details are in [SECURITY.md](SECURITY.md).
+No telemetry and nothing in the background. By default the only network call is an optional daily update check. cream only talks to Anthropic and OpenAI when you turn on the usage check (`usage_check = true`), and never to GitHub or GitLab itself. Details are in [SECURITY.md](SECURITY.md).

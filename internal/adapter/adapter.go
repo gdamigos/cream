@@ -90,6 +90,12 @@ type Locker interface {
 	Unlock(ctx context.Context, env *Env, key string, dryRun bool) (restored bool, changes []Change, err error)
 }
 
+// a plan login whose usage the opt-in usage check can ask for
+type UsageReporter interface {
+	// the bearer token from the tool's own files when live, else from the profile's saved login
+	UsageLogin(ctx context.Context, env *Env, p *config.Profile, live bool) (token, accountID string, err error)
+}
+
 type ErrNotImported struct{ Adapter, Profile string }
 
 func (e ErrNotImported) Error() string {

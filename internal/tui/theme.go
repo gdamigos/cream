@@ -59,6 +59,7 @@ var (
 	sHi       = lipgloss.NewStyle().Foreground(cHi)
 	sKey      = lipgloss.NewStyle().Foreground(cAccent).Bold(true)
 	sKeyDesc  = lipgloss.NewStyle().Foreground(cDim)
+	sArmed    = lipgloss.NewStyle().Foreground(cInk).Background(cAccent).Bold(true)
 	sPanel    = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(cBorder).Padding(0, 1)
 	sPanelHot = sPanel.BorderForeground(cAccent)
 	sModal    = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(cHi).Padding(1, 3)
