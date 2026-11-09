@@ -38,3 +38,5 @@ cosign verify-blob --bundle checksums.txt.sigstore.json \
 sha256sum --ignore-missing -c checksums.txt
 gh attestation verify cream_*_linux_amd64.tar.gz --repo gdamigos/cream
 ```
+
+The same attestation is attached to each release as `cream_<version>.intoto.jsonl`, so you can check it offline with `gh attestation verify <file> --repo gdamigos/cream --bundle cream_<version>.intoto.jsonl`.

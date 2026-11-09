@@ -63,10 +63,15 @@ func drain(t *testing.T, cur tea.Model, cmd tea.Cmd, depth int) tea.Model {
 	}
 	done := make(chan tea.Msg, 1)
 	go func() { done <- cmd() }()
+	// a running operation can take longer than a timer tick on slow CI runners, so wait for it
+	wait := 150 * time.Millisecond
+	if m, ok := cur.(Model); ok && m.busy {
+		wait = 10 * time.Second
+	}
 	var msg tea.Msg
 	select {
 	case msg = <-done:
-	case <-time.After(150 * time.Millisecond):
+	case <-time.After(wait):
 		return cur // timer tick
 	}
 	switch m := msg.(type) {
