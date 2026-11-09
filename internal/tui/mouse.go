@@ -190,7 +190,7 @@ func (m Model) footerLabels() []clickLabel {
 	return out
 }
 
-// the key hints drawn inside the tab panel, see statusHints, viewRules and viewBackups
+// the key hints drawn inside the tab panel, see viewRules and viewBackups
 func (m Model) panelLabels() []clickLabel {
 	focusList := label("→ focus list", keyRight)
 	switch m.tab {
@@ -199,10 +199,7 @@ func (m Model) panelLabels() []clickLabel {
 	case tabBackups:
 		return []clickLabel{focusList, {text: "enter restore", key: keyEnter, focus: focusPanel}, label("u restore latest", keyRune('u'))}
 	}
-	return []clickLabel{
-		label("enter switch", keyEnter), label("i save", keyRune('i')), label("i import", keyRune('i')),
-		label("x forget", keyRune('x')), label("← back", keyLeft), label("→ pick", keyRight), label("r run", keyRune('r')),
-	}
+	return nil
 }
 
 // a click does what the matching key does, clicking the selected item again is enter

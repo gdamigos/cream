@@ -142,7 +142,7 @@ func TestSwitchOneTool(t *testing.T) {
 
 	// select work, focus the status list, claude is the first row
 	md = send(t, md, key("down"), key("l"))
-	if !strings.Contains(plain(md), "switch only Claude Code to work") {
+	if !strings.Contains(plain(md), "switch this tool") {
 		t.Fatalf("tool hint missing:\n%s", plain(md))
 	}
 	md = send(t, md, key("enter"))

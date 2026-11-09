@@ -236,10 +236,10 @@ func TestClickBackToProfiles(t *testing.T) {
 	md = send(t, md, tea.WindowSizeMsg{Width: 120, Height: 40}, statusMsg{list: mgr.StatusFor(ctxBG(), nil)})
 	right := leftWidth(120)
 
-	// the "→ pick one tool" hint focuses the tool list
-	md = pressOn(t, md, "→ pick", right)
+	// empty space in the tab panel focuses the tool list
+	md = click(t, md, right+10, md.h-4)
 	if !md.focusRight {
-		t.Fatal("hint did not focus the tool list")
+		t.Fatal("clicking empty space in the tab panel did not focus it")
 	}
 	// the panel title is empty space, a click there goes back to the profiles
 	md = clickProfile(t, md, "Profiles")

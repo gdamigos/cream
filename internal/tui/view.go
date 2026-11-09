@@ -333,41 +333,15 @@ func (m Model) viewStatus(w int) string {
 	}
 	lines = append(lines, "")
 	if sel != nil {
-		lines = append(lines, m.statusHints(sel, focused)...)
-		lines = append(lines, "", m.profileCard(sel, w))
+		if focused && len(m.status) > 0 {
+			s := m.status[m.rightCursor[tabStatus]]
+			if s.Live.LoggedIn && len(m.mgr.Owners(s.ID, s.Live.Account)) == 0 {
+				lines = append(lines, sWarn.Render("! ")+sDim.Render(s.Live.Account+" is not saved in any profile yet"), "")
+			}
+		}
+		lines = append(lines, m.profileCard(sel, w))
 	}
 	return strings.Join(lines, "\n")
-}
-
-func (m Model) statusHints(sel *config.Profile, focused bool) []string {
-	key := func(k, desc string) string { return sKey.Render(k) + sKeyDesc.Render(" "+desc) }
-	dot := sKeyDesc.Render(" · ")
-	if focused && len(m.status) > 0 {
-		s := m.status[m.rightCursor[tabStatus]]
-		out := []string{
-			key("enter", "switch only "+s.Name+" to ") + sBold.Render(sel.Name),
-			key("i", "save the current "+s.Name+" login into ") + sBold.Render(sel.Name),
-		}
-		if sel.Accounts[s.ID] != nil {
-			out = append(out, key("x", "forget the "+s.Name+" account saved in ")+sBold.Render(sel.Name))
-		}
-		out = append(out, key("←", "back to switching everything"))
-		if s.Live.LoggedIn && len(m.mgr.Owners(s.ID, s.Live.Account)) == 0 {
-			out = append(out, sWarn.Render("! ")+sDim.Render(s.Live.Account+" is not saved in any profile yet"))
-		}
-		return out
-	}
-	var out []string
-	if sel.Name == m.mgr.Cfg.Active {
-		out = append(out, sOK.Render("● ")+sDim.Render(sel.Name+" is the active profile"))
-	} else {
-		out = append(out, key("enter", "switch everything to ")+sBold.Render(sel.Name))
-	}
-	out = append(out, key("→", "pick one tool to switch or import")+dot+key("r", "run one tool as "+sel.Name))
-	if len(sel.Accounts) == 0 {
-		out = append(out, key("i", "import the logins above into ")+sBold.Render(sel.Name))
-	}
-	return out
 }
 
 func (m Model) profileCard(p *config.Profile, w int) string {
