@@ -160,6 +160,7 @@ type Model struct {
 	statusLoaded bool
 	statusLoads  int // status reads in flight, config is only reloaded when zero
 	backups      []backup.Info
+	armed        armedHint // see click_twice.go
 
 	busy      bool
 	busyLabel string
@@ -476,6 +477,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.intro = false
 			return m, nil
 		}
+		m.armed = armedHint{}
 		return m.handleKey(msg)
 	}
 

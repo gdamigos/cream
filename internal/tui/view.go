@@ -33,7 +33,7 @@ func (m Model) View() string {
 	if box := m.modalBox(); box != "" {
 		base = overlay(base, box, m.w, m.h)
 	}
-	return base
+	return m.drawArmed(base)
 }
 
 // the open window, drawn centred over the main view, mouse.go hit tests the same box

@@ -46,6 +46,12 @@ func clickOn(t *testing.T, md Model, text string, minX int) Model {
 	return click(t, md, x+1, y) // inside the text, not on its first cell
 }
 
+// a key hint, the first click boxes it and the second runs it
+func pressOn(t *testing.T, md Model, text string, minX int) Model {
+	t.Helper()
+	return clickOn(t, clickOn(t, md, text, minX), text, minX)
+}
+
 // a profile row in the left panel, names also show up in emails and headers elsewhere
 func clickProfile(t *testing.T, md Model, name string) Model {
 	t.Helper()
@@ -100,7 +106,7 @@ func TestClickToolRowAndConfirm(t *testing.T) {
 	}
 
 	// n cancels, a click outside the window cancels too
-	if md = clickOn(t, md, "n cancel", 0); md.modal != modalNone {
+	if md = pressOn(t, md, "n cancel", 0); md.modal != modalNone {
 		t.Fatal("clicking n cancel left the window open")
 	}
 	md = clickOn(t, md, "Codex", right)
@@ -110,7 +116,7 @@ func TestClickToolRowAndConfirm(t *testing.T) {
 
 	// y confirms and the switch runs
 	md = clickOn(t, md, "Codex", right)
-	md = clickOn(t, md, "y confirm", 0)
+	md = pressOn(t, md, "y confirm", 0)
 	if md.modal != modalNone || md.busy {
 		t.Fatalf("y confirm did not run the switch, modal %v", md.modal)
 	}
@@ -163,8 +169,8 @@ func TestClickBackupRowAndWindows(t *testing.T) {
 	}
 }
 
-// text in the header or the footer, which find skips or would reach last
-func clickEdge(t *testing.T, md Model, text string, footer bool) Model {
+// a key hint in the header or the footer, which find skips or would reach last, clicked twice
+func pressEdge(t *testing.T, md Model, text string, footer bool) Model {
 	t.Helper()
 	lines := strings.Split(plain(md), "\n")
 	from, to := 0, lipgloss.Height(md.viewHeader())
@@ -173,11 +179,55 @@ func clickEdge(t *testing.T, md Model, text string, footer bool) Model {
 	}
 	for y := from; y < to; y++ {
 		if i := strings.Index(lines[y], text); i >= 0 {
-			return click(t, md, ansi.StringWidth(lines[y][:i])+1, y)
+			x := ansi.StringWidth(lines[y][:i]) + 1
+			return click(t, click(t, md, x, y), x, y)
 		}
 	}
 	t.Fatalf("%q not in the header or footer:\n%s", text, plain(md))
 	return md
+}
+
+func TestClickTwiceOnHints(t *testing.T) {
+	md, mgr := newModel(t)
+	mgr.Import(ctxBG(), "work", nil, false, nil)
+	md = send(t, md, tea.WindowSizeMsg{Width: 120, Height: 40}, statusMsg{list: mgr.StatusFor(ctxBG(), nil)})
+	md = clickProfile(t, md, "work")
+	md = send(t, md, key("enter"))
+	if md.modal != modalConfirm {
+		t.Fatal("switch preview not open")
+	}
+
+	// the first click only boxes the hint
+	md = clickOn(t, md, "n cancel", 0)
+	if md.modal != modalConfirm || md.armed.text != "n cancel" {
+		t.Fatalf("first click should only arm n cancel, modal %v armed %+v", md.modal, md.armed)
+	}
+	if !strings.Contains(md.View(), sArmed.Render("n cancel")) {
+		t.Fatal("armed hint is not drawn boxed")
+	}
+	// another hint moves the box, a key press clears it
+	if md = clickOn(t, md, "y confirm", 0); md.armed.text != "y confirm" || md.modal != modalConfirm {
+		t.Fatalf("clicking y confirm should move the box, armed %+v", md.armed)
+	}
+	if md = send(t, md, key("down")); md.armed.text != "" {
+		t.Fatal("a key press left the hint armed")
+	}
+	// so the next click arms again instead of confirming
+	if md = clickOn(t, md, "y confirm", 0); md.modal != modalConfirm {
+		t.Fatal("a click after a key press confirmed right away")
+	}
+	if md = clickOn(t, md, "y confirm", 0); md.modal != modalNone || md.armed.text != "" {
+		t.Fatalf("second click should confirm, modal %v", md.modal)
+	}
+
+	// with ui.click_twice off one click runs the key
+	mgr.Cfg.UI.ClickTwice = false
+	if md = send(t, md, key("L")); md.modal != modalConfirm {
+		t.Fatal("lock confirm not open")
+	}
+	if md = clickOn(t, md, "n cancel", 0); md.modal != modalNone {
+		t.Fatal("with click_twice off one click should cancel")
+	}
 }
 
 func TestClickBackToProfiles(t *testing.T) {
@@ -187,7 +237,7 @@ func TestClickBackToProfiles(t *testing.T) {
 	right := leftWidth(120)
 
 	// the "→ pick one tool" hint focuses the tool list
-	md = clickOn(t, md, "→ pick", right)
+	md = pressOn(t, md, "→ pick", right)
 	if !md.focusRight {
 		t.Fatal("hint did not focus the tool list")
 	}
@@ -201,7 +251,7 @@ func TestClickBackToProfiles(t *testing.T) {
 	if !md.focusRight {
 		t.Fatal("clicking empty space in the tab panel did not focus it")
 	}
-	if md = clickEdge(t, md, "← profiles", true); md.focusRight {
+	if md = pressEdge(t, md, "← profiles", true); md.focusRight {
 		t.Fatal("footer ← profiles did not go back")
 	}
 }
@@ -211,43 +261,43 @@ func TestClickFooterHeaderAndWindows(t *testing.T) {
 	md := New(mgr, Options{Version: "v0.1.3", SkipIntro: true, UpdateCheck: true})
 	md = send(t, md, tea.WindowSizeMsg{Width: 140, Height: 40}, statusMsg{list: mgr.StatusFor(ctxBG(), nil)})
 
-	if md = clickEdge(t, md, "L lock", true); md.modal != modalConfirm || md.pend.kind != actLock {
+	if md = pressEdge(t, md, "L lock", true); md.modal != modalConfirm || md.pend.kind != actLock {
 		t.Fatalf("footer L lock should ask to lock, got %+v", md.pend)
 	}
 	md = send(t, md, key("n"))
-	if md = clickEdge(t, md, "? help", true); md.modal != modalHelp {
+	if md = pressEdge(t, md, "? help", true); md.modal != modalHelp {
 		t.Fatal("footer ? help did not open help")
 	}
 	md = click(t, md, 1, 1)
 
 	// D in the footer turns dry run on, the DRY RUN badge turns it off again
-	if md = clickEdge(t, md, "D dry-run", true); !md.dryRun {
+	if md = pressEdge(t, md, "D dry-run", true); !md.dryRun {
 		t.Fatal("footer D did not turn dry run on")
 	}
-	if md = clickEdge(t, md, "DRY RUN", false); md.dryRun {
+	if md = pressEdge(t, md, "DRY RUN", false); md.dryRun {
 		t.Fatal("the DRY RUN badge did not turn dry run off")
 	}
 
 	// the update badge opens the update window, its own keys are clickable
 	md = send(t, md, updateMsg{&update.Result{Latest: "v0.2.0", Newer: true}})
-	if md = clickEdge(t, md, "v0.2.0 · U", false); md.modal != modalUpdate {
+	if md = pressEdge(t, md, "v0.2.0 · U", false); md.modal != modalUpdate {
 		t.Fatal("update badge did not open the update window")
 	}
 	var opened string
 	openURL = func(_, url string) error { opened = url; return nil }
 	defer func() { openURL = openInBrowser }()
-	if md = clickOn(t, md, "o open", 0); opened == "" || md.modal != modalNone {
+	if md = pressOn(t, md, "o open", 0); opened == "" || md.modal != modalNone {
 		t.Fatalf("o open did nothing, opened %q", opened)
 	}
-	md = clickEdge(t, md, "v0.2.0 · U", false)
-	if md = clickOn(t, md, "esc close", 0); md.modal != modalNone {
+	md = pressEdge(t, md, "v0.2.0 · U", false)
+	if md = pressOn(t, md, "esc close", 0); md.modal != modalNone {
 		t.Fatal("esc close left the update window open")
 	}
 
 	// the rules tab's own "a add" hint opens the rule form for the selected profile
 	md = clickProfile(t, md, "work")
 	md = clickOn(t, md, "2 Rules", leftWidth(140))
-	if md = clickOn(t, md, "a add", leftWidth(140)); md.modal != modalForm {
+	if md = pressOn(t, md, "a add", leftWidth(140)); md.modal != modalForm {
 		t.Fatal("a add did not open the rule form")
 	}
 	// a click outside the form's border closes it, like esc
@@ -302,7 +352,7 @@ func TestClickLiveAccountImports(t *testing.T) {
 	if md.modal != modalConfirm || md.pend.kind != actImport || len(md.pend.only) != 1 || md.pend.only[0] != "claude" {
 		t.Fatalf("clicking the live account should ask to import only Claude Code, got %+v", md.pend)
 	}
-	md = clickOn(t, md, "y confirm", 0)
+	md = pressOn(t, md, "y confirm", 0)
 	md = send(t, md, key("enter")) // close the result window
 	if a := mgr.Cfg.Profiles["personal"].Accounts["claude"]; a == nil || a.Label != "me@work.com" {
 		t.Fatalf("personal claude = %+v", a)

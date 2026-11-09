@@ -13,6 +13,7 @@ adapters = ["claude", "codex", "github", "gitlab", "git"]
 intro = true            # the intro animation
 dynamic_title = true    # active profile and current action in the terminal tab title
 disabled_keys = []      # keys that do nothing on the main screen, e.g. ["x", "ctrl+l"]
+click_twice = true      # a clicked key hint gets a box, a second click runs it
 
 [vault]
 backend = "auto"        # auto, keyring or file

@@ -13,6 +13,7 @@ adapters = ["claude", "codex", "github", "gitlab", "git"]
 intro = true
 dynamic_title = true
 disabled_keys = []
+click_twice = true
 
 [vault]
 backend = "auto"        # auto, keyring or file
@@ -45,6 +46,7 @@ A full example with every setting is in [`examples/config.toml`](../examples/con
 | `ui.intro` | `true` | show the intro animation |
 | `ui.dynamic_title` | `true` | show the active profile and what cream is doing in the terminal tab title |
 | `ui.disabled_keys` | `[]` | keys that do nothing on the main screen, e.g. `["x", "ctrl+l"]`. They also leave the footer. |
+| `ui.click_twice` | `true` | clicking a key shown on screen puts a box around it and a second click runs it. Set it to `false` to run it on the first click. |
 | `vault.backend` | `auto` | `auto` uses the OS keyring when there is one and the encrypted file otherwise. `keyring` and `file` force one. |
 | `git.strict` | `true` | once you have identity rules, repos that match none of them can't commit. Set it to `false` to keep the active profile as a fallback identity. With no rules the active profile is always the global identity. |
 | `lock.all`, `lock.profiles` | empty | set by `cream lock` and cleared by `cream unlock`. Don't edit them by hand, the saved logins are in the vault. |

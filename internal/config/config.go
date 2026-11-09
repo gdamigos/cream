@@ -49,6 +49,7 @@ type UIConfig struct {
 	Intro        bool     `toml:"intro"`
 	DynamicTitle bool     `toml:"dynamic_title"`
 	DisabledKeys []string `toml:"disabled_keys"`
+	ClickTwice   bool     `toml:"click_twice"` // a clicked key hint runs on the second click
 }
 
 type VaultConfig struct {
@@ -94,7 +95,7 @@ type Account struct {
 func New() *Config {
 	return &Config{
 		Version:  CurrentVersion,
-		UI:       UIConfig{Intro: true, DynamicTitle: true, DisabledKeys: []string{}},
+		UI:       UIConfig{Intro: true, DynamicTitle: true, DisabledKeys: []string{}, ClickTwice: true},
 		Vault:    VaultConfig{Backend: "auto"},
 		Profiles: map[string]*Profile{},
 	}

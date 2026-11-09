@@ -135,6 +135,7 @@ type clickLabel struct {
 	text  string
 	key   tea.KeyMsg
 	focus focusTo
+	x     int 
 }
 
 func label(text string, k tea.KeyMsg) clickLabel { return clickLabel{text: text, key: k} }
@@ -156,6 +157,7 @@ func (m Model) labelAt(x, y, minX, maxX int, labels []clickLabel) (clickLabel, b
 			start := ansi.StringWidth(line[:from+i])
 			end := start + ansi.StringWidth(l.text)
 			if start >= minX && end <= maxX && x >= start && x < end {
+				l.x = start
 				return l, true
 			}
 			from += i + len(l.text)
@@ -193,9 +195,9 @@ func (m Model) panelLabels() []clickLabel {
 	focusList := label("→ focus list", keyRight)
 	switch m.tab {
 	case tabRules:
-		return []clickLabel{focusList, {"x remove", keyRune('x'), focusPanel}, label("a add", keyRune('a'))}
+		return []clickLabel{focusList, {text: "x remove", key: keyRune('x'), focus: focusPanel}, label("a add", keyRune('a'))}
 	case tabBackups:
-		return []clickLabel{focusList, {"enter restore", keyEnter, focusPanel}, label("u restore latest", keyRune('u'))}
+		return []clickLabel{focusList, {text: "enter restore", key: keyEnter, focus: focusPanel}, label("u restore latest", keyRune('u'))}
 	}
 	return []clickLabel{
 		label("enter switch", keyEnter), label("i save", keyRune('i')), label("i import", keyRune('i')),
@@ -205,8 +207,11 @@ func (m Model) panelLabels() []clickLabel {
 
 // a click does what the matching key does, clicking the selected item again is enter
 func (m Model) handleClick(x, y int) (tea.Model, tea.Cmd) {
+	// any click disarms the boxed hint
+	prev := m.armed
+	m.armed = armedHint{}
 	if m.modal != modalNone {
-		return m.clickModal(x, y)
+		return m.clickModal(prev, x, y)
 	}
 	if m.busy {
 		return m, nil
@@ -229,6 +234,10 @@ func (m Model) handleClick(x, y int) (tea.Model, tea.Cmd) {
 		labels, minX = m.panelLabels(), leftW
 	}
 	if l, ok := m.labelAt(x, y, minX, maxX, labels); ok {
+		var run bool
+		if m, run = m.pressLabel(prev, l, y); !run {
+			return m, nil
+		}
 		switch l.focus {
 		case focusProfiles:
 			m.focusRight = false
@@ -310,7 +319,7 @@ func (m Model) clickForm(x, y int) (tea.Model, tea.Cmd) {
 }
 
 // windows are centred boxes with a border and padding of 1 line and 3 columns, see sModal
-func (m Model) clickModal(x, y int) (tea.Model, tea.Cmd) {
+func (m Model) clickModal(prev armedHint, x, y int) (tea.Model, tea.Cmd) {
 	if m.modal == modalForm {
 		return m.clickForm(x, y)
 	}
@@ -318,7 +327,18 @@ func (m Model) clickModal(x, y int) (tea.Model, tea.Cmd) {
 	bw, bh := lipgloss.Width(box), lipgloss.Height(box)
 	bx, by := max(0, (m.w-bw)/2), max(0, (m.h-bh)/2)
 	inside := x >= bx && x < bx+bw && y >= by && y < by+bh
-	cx, cy := bx+4, by+2
+	cy := by + 2
+	press := func(labels ...clickLabel) (tea.Model, tea.Cmd) {
+		l, ok := m.labelAt(x, y, bx, bx+bw, labels)
+		if !ok {
+			return m, nil
+		}
+		armed, run := m.pressLabel(prev, l, y)
+		if !run {
+			return armed, nil
+		}
+		return m.handleKey(l.key)
+	}
 
 	switch m.modal {
 	case modalHelp, modalResult:
@@ -327,15 +347,7 @@ func (m Model) clickModal(x, y int) (tea.Model, tea.Cmd) {
 		if !inside {
 			return m.handleKey(keyEsc)
 		}
-		// the last line reads "y confirm   n cancel"
-		if y == by+bh-3 {
-			switch {
-			case x >= cx && x < cx+len("y confirm"):
-				return m.handleKey(keyRune('y'))
-			case x >= cx+len("y confirm   ") && x < cx+len("y confirm   n cancel"):
-				return m.handleKey(keyRune('n'))
-			}
-		}
+		return press(label("y confirm", keyRune('y')), label("n cancel", keyRune('n')))
 	case modalRun:
 		if !inside {
 			return m.handleKey(keyEsc)
@@ -348,18 +360,12 @@ func (m Model) clickModal(x, y int) (tea.Model, tea.Cmd) {
 			m.runCursor = i
 			return m, nil
 		}
-		labels := []clickLabel{label("enter launch", keyEnter), label("esc cancel", keyEsc)}
-		if l, ok := m.labelAt(x, y, bx, bx+bw, labels); ok {
-			return m.handleKey(l.key)
-		}
+		return press(label("enter launch", keyEnter), label("esc cancel", keyEsc))
 	case modalUpdate:
 		if !inside {
 			return m.handleKey(keyEsc)
 		}
-		labels := []clickLabel{label("c copy", keyRune('c')), label("o open", keyRune('o')), label("esc close", keyEsc)}
-		if l, ok := m.labelAt(x, y, bx, bx+bw, labels); ok {
-			return m.handleKey(l.key)
-		}
+		return press(label("c copy", keyRune('c')), label("o open", keyRune('o')), label("esc close", keyEsc))
 	}
 	return m, nil
 }
