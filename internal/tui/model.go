@@ -73,6 +73,7 @@ const (
 	actLock
 	actUnlock
 	actFolder
+	actQuit
 )
 
 // how often tool state is re-read so logins made in other terminals show up
@@ -256,6 +257,14 @@ func poll() tea.Cmd {
 
 // re-reads config.toml if another cream changed it, then the live tool state
 func (m Model) refresh() (Model, tea.Cmd) {
+	// the .cream may have been added, changed or removed since, a broken one counts as none
+	if m.opts.Dir != "" {
+		f, err := m.mgr.Folder(m.opts.Dir)
+		if err != nil {
+			f = nil
+		}
+		m.opts.Folder = f
+	}
 	if m.busy || m.modal != modalNone || m.statusLoads > 0 {
 		return m, nil
 	}

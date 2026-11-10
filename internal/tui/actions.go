@@ -275,6 +275,9 @@ func (m Model) execute(p pending) (tea.Model, tea.Cmd) {
 		cmd := m.loadStatus()
 		return m, cmd
 
+	case actQuit:
+		return m.syncActive(), tea.Quit
+
 	case actFolder:
 		path, err := mgr.InitFolder(m.opts.Dir, p.profile, nil, dry)
 		if err != nil {

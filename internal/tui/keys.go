@@ -46,6 +46,9 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case modalConfirm:
+		if m.pend != nil && m.pend.kind == actQuit && k.String() == "q" {
+			return m.syncActive(), tea.Quit
+		}
 		switch k.String() {
 		case "y", "Y", "enter":
 			p := *m.pend
@@ -91,7 +94,11 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	sel := m.selected()
 	switch k.String() {
-	case "q", "esc":
+	case "q":
+		m.pend = &pending{kind: actQuit, title: "Quit cream?",
+			lines: []string{"The active profile's refreshed logins are saved first.", "Press q again to quit."}}
+		m.modal = modalConfirm
+	case "esc":
 		return m.syncActive(), tea.Quit
 	case "?":
 		m.modal = modalHelp

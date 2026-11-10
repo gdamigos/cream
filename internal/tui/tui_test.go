@@ -68,6 +68,33 @@ func TestFolderKeyWritesCream(t *testing.T) {
 	if md.folderProfile() != "personal" {
 		t.Fatal("folder not shown after writing")
 	}
+
+	// R notices the file is gone
+	os.Remove(f.Path)
+	md = send(t, md, key("R"))
+	if md.folderProfile() != "" || strings.Contains(plain(md), "folder") {
+		t.Fatalf("removed .cream still shown:\n%s", plain(md))
+	}
+}
+
+func TestQuitAsksFirst(t *testing.T) {
+	md, _ := newModel(t)
+	md = send(t, md, tea.WindowSizeMsg{Width: 120, Height: 30})
+	next, cmd := md.Update(key("q"))
+	md = next.(Model)
+	if cmd != nil || md.modal != modalConfirm || !strings.Contains(plain(md), "Quit cream?") {
+		t.Fatal("q quit without asking")
+	}
+	next, _ = md.Update(key("n"))
+	if next.(Model).modal != modalNone {
+		t.Fatal("n did not cancel")
+	}
+	for _, second := range []string{"q", "y"} {
+		_, cmd = md.Update(key(second))
+		if cmd == nil || fmtType(cmd()) != "tea.QuitMsg" {
+			t.Fatalf("%s did not quit", second)
+		}
+	}
 }
 
 func TestIntroThenMain(t *testing.T) {

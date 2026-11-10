@@ -8,6 +8,7 @@
 coverage.*
 *.prof
 *.pprof
+.cream
 
 # local go workspaces
 go.work

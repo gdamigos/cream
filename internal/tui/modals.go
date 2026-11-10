@@ -61,7 +61,7 @@ func (m Model) viewHelp() string {
 		{"→ / ←", "move between profiles and the list on the right"},
 		{"D", "toggle dry-run (preview changes only)"},
 		{"R", "refresh now (also automatic every few seconds)"},
-		{"q", "quit"},
+		{"q", "quit (asks first, q twice quits)"},
 	}
 	lines := []string{sAccent.Render("Keys"), ""}
 	for _, r := range rows {
