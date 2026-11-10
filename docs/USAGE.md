@@ -37,6 +37,7 @@ Run `cream` with no arguments.
 | `i` | save the accounts you are logged in to now into the profile |
 | `n` `e` `x` | new, edit or delete a profile (deleting also removes its saved logins). The form also sets, changes or removes a [password](#password-protected-profiles). |
 | `a` | add a git identity rule (remote host or folder) |
+| `f` | pick the selected profile for the folder you opened cream in, like [`cream init`](#a-profile-per-folder) |
 | `L` / `ctrl+l` | lock or unlock the selected profile / everything |
 | `S` | with the [usage check](#usage-and-stale-logins) on, switch a tool that hit its plan limit to the profile with the most room left (shows a preview first) |
 | `U` | when a new version is out: the update command for how you installed cream (Scoop, Homebrew, `.deb`, `go install`), to copy, or the release page to open |
@@ -60,8 +61,9 @@ cream profile list
 cream profile remove <name> --yes [--forgot-password]   also deletes its saved logins
 cream profile forget <name> --only claude[,…] --yes   drop saved logins, keep the profile
 cream import <profile> [--only claude,codex,github,gitlab,git] [--gitlab-host HOST]
-cream use <profile> [--only …]          switch every tool
-cream run <profile> <command> [args…]   run one tool as a profile, this terminal only
+cream use [profile] [--only …]          switch every tool (no profile: the folder's .cream picks it)
+cream run [profile] <command> [args…]   run one tool as a profile, this terminal only
+cream init [profile] [--only …] [--force]   pick a profile for this folder (writes .cream)
 cream lock [profile]                    log tools out on purpose and turn git identity off
 cream unlock [profile]                  put everything back
 cream status [--json]                   who is logged in to each tool
@@ -93,6 +95,24 @@ cream use work --only github,gitlab,git
 - `cream use work` changes every tool's login files, so every new terminal and editor uses `work`.
 - `cream run work claude` starts only that program as `work` and leaves everything else alone, so two accounts can run side by side. Put `--` before a command with its own flags: `cream run personal -- gh pr list`.
 
+## A profile per folder
+
+`cream init work` writes a `.cream` file into the current folder:
+
+```toml
+profile = "work"
+only = ["claude", "codex"]   # optional, the tools `cream use` switches here
+```
+
+In that folder and every folder below it (the nearest `.cream` wins):
+
+- `cream use` with no profile switches to `work`. `--only` on the command line replaces the file's `only`.
+- `cream run claude` runs as `work`. A profile named first still wins: `cream run personal claude`. If a command has the same name as a profile, start with `--`: `cream run -- work`.
+- `cream` opens the UI with `work` selected and shows it in the header, and `enter` switches it with the file's `only`.
+- `cream doctor` warns when the file names a profile or tool that doesn't exist, and tells you when it isn't the active profile.
+
+In the UI, `f` writes the file for the selected profile. Without a profile, `cream init` uses the active one. Add `--force` to replace an existing file. Commit it to share it with your team, or add `.cream` to `.gitignore` to keep it to yourself. It only picks a profile and never switches anything by itself.
+
 ## Password protected profiles
 
 When several people share one computer, each can protect their profile with a password: `cream profile password alice`, `--password` on `profile add`, or the password fields in the `n` and `e` forms. It needs at least 8 characters.
@@ -111,7 +131,7 @@ With `usage_check = true`, cream also asks Anthropic and OpenAI how much of thei
 
 ## Doctor
 
-`cream doctor` checks that each tool is logged in as the active profile expects, that every saved account is still in the vault and that `~/.gitconfig` matches your rules. Run it inside a git repo and it also tells you which profile owns the repo, whether commits here use that profile's email, and whether any commits you haven't pushed yet carry the wrong one. Every problem comes with a fix. It changes nothing and exits with `1` when something is broken.
+`cream doctor` checks that each tool is logged in as the active profile expects, that every saved account is still in the vault and that `~/.gitconfig` matches your rules. Run it inside a git repo and it also tells you which profile owns the repo, whether commits here use that profile's email, and whether any commits you haven't pushed yet carry the wrong one. It also checks the folder's [`.cream`](#a-profile-per-folder). Every problem comes with a fix. It changes nothing and exits with `1` when something is broken.
 
 ## Lock mode
 

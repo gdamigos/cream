@@ -161,6 +161,9 @@ func (m Model) viewHeader() string {
 	if active != "" {
 		activeStr = sDim.Render("active ") + m.profileDot(active) + " " + sBold.Render(active)
 	}
+	if f := m.folderProfile(); f != "" && f != active {
+		activeStr += sFaint.Render("  ·  ") + sDim.Render("folder ") + m.profileDot(f) + " " + sBold.Render(f)
+	}
 	info := lipgloss.JoinVertical(lipgloss.Left,
 		sHi.Render("CREdentiAls Master")+sFaint.Render("  "+m.opts.Version),
 		activeStr+sFaint.Render("  ·  ")+sDim.Render(vaultLabel(m.mgr.Env.Vault.Backend())),
@@ -232,6 +235,9 @@ func (m Model) viewProfiles(w, h int) string {
 		row := marker + m.profileDot(n) + " " + nameSt.Render(name)
 		if n == m.mgr.Cfg.Active {
 			row += " " + sOK.Render("active")
+		}
+		if n == m.folderProfile() {
+			row += " " + sDim.Render("folder")
 		}
 		if m.mgr.Cfg.Locked(n) {
 			row += " " + sWarn.Render("locked")

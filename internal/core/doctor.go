@@ -25,7 +25,7 @@ const (
 )
 
 type Check struct {
-	Area  string // tools, accounts, git or repo
+	Area  string // tools, accounts, git, repo or folder
 	Name  string
 	State CheckState
 	Msg   string
@@ -100,6 +100,7 @@ func (m *Manager) Doctor(ctx context.Context, dir string) []Check {
 	out = append(out, m.doctorGit(ctx)...)
 	if dir != "" {
 		out = append(out, m.doctorRepo(ctx, dir)...)
+		out = append(out, m.doctorFolder(dir)...)
 	}
 	return out
 }

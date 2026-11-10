@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/gdamigos/cream/internal/config"
 	"github.com/gdamigos/cream/internal/vault"
 )
 
@@ -31,6 +32,41 @@ func TestRendersAtManySizes(t *testing.T) {
 				break
 			}
 		}
+	}
+}
+
+func TestStartsOnFolderProfile(t *testing.T) {
+	_, mgr := newModel(t)
+	mgr.Cfg.Active = "work"
+	md := New(mgr, Options{Version: "test", SkipIntro: true, Folder: &config.Folder{Profile: "personal"}})
+	if md.selected().Name != "personal" {
+		t.Fatalf("selected %s", md.selected().Name)
+	}
+	md = send(t, md, tea.WindowSizeMsg{Width: 120, Height: 30})
+	if v := plain(md); !strings.Contains(v, "folder ● personal") {
+		t.Fatalf("no folder in header:\n%s", v)
+	}
+}
+
+func TestFolderKeyWritesCream(t *testing.T) {
+	_, mgr := newModel(t)
+	dir := t.TempDir()
+	md := New(mgr, Options{Version: "test", SkipIntro: true, Dir: dir})
+	md = send(t, md, tea.WindowSizeMsg{Width: 120, Height: 30})
+	if md.selected().Name != "personal" {
+		t.Fatalf("selected %s", md.selected().Name)
+	}
+	md = send(t, md, key("f"))
+	if md.modal != modalConfirm {
+		t.Fatalf("no confirm, modal %v", md.modal)
+	}
+	md = send(t, md, key("y"))
+	f, err := config.FindFolder(dir)
+	if err != nil || f == nil || f.Profile != "personal" {
+		t.Fatalf("f=%v err=%v", f, err)
+	}
+	if md.folderProfile() != "personal" {
+		t.Fatal("folder not shown after writing")
 	}
 }
 

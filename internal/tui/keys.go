@@ -139,6 +139,9 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		if sel != nil {
 			only := m.focusedTool()
+			if only == nil && sel.Name == m.folderProfile() {
+				only = m.opts.Folder.Only
+			}
 			return m.withPassword(sel.Name, func(m Model) (tea.Model, tea.Cmd) { return m.previewSwitch(sel.Name, only) })
 		}
 	case "i":
@@ -154,6 +157,10 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.modal = modalRun
 				return m, nil
 			})
+		}
+	case "f":
+		if sel != nil {
+			return m.confirmFolder(sel.Name)
 		}
 	case "U":
 		return m.openUpdate()

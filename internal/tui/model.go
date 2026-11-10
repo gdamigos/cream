@@ -27,6 +27,8 @@ type Options struct {
 	UpdateCheck bool
 	Checker     *update.Checker
 	SkipIntro   bool
+	Dir         string         // the folder cream was opened in, f writes its .cream here
+	Folder      *config.Folder // the .cream that applies to Dir
 }
 
 func Run(m *core.Manager, o Options) error {
@@ -70,6 +72,7 @@ const (
 	actForget
 	actLock
 	actUnlock
+	actFolder
 )
 
 // how often tool state is re-read so logins made in other terminals show up
@@ -215,12 +218,24 @@ func New(m *core.Manager, o Options) Model {
 		// Init starts the first status read on a copy
 		statusLoads: 1,
 	}
+	start := m.Cfg.Active
+	if o.Folder != nil {
+		start = o.Folder.Profile
+	}
 	for i, n := range m.Cfg.Names() {
-		if n == m.Cfg.Active {
+		if n == start {
 			md.cursor = i
 		}
 	}
 	return md
+}
+
+// the profile the folder's .cream picks, empty when there is none
+func (m Model) folderProfile() string {
+	if m.opts.Folder == nil {
+		return ""
+	}
+	return m.opts.Folder.Profile
 }
 
 func (m Model) Init() tea.Cmd {

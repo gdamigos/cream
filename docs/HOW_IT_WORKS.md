@@ -29,6 +29,8 @@ Everything lives in **`~/.config/cream/`** on every OS. You can move it with `CR
 └── cream.log            a local activity log without secrets
 ```
 
+The only file cream writes outside this folder (besides the tools' own files) is the [`.cream`](USAGE.md#a-profile-per-folder) that `cream init` or `f` in the UI puts in the folder you're in. It holds a profile name, never secrets.
+
 Secrets are stored in your OS keyring (Windows Credential Manager, macOS Keychain or Secret Service). When there is no keyring, they go into `vault.age`, a file encrypted with [age](https://age-encryption.org) and a passphrase.
 
 ## How a switch stays safe

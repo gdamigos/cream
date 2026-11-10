@@ -9,7 +9,6 @@ Ideas and known problems in no particular ((execution)) order.
 - [ ] SSH keys per profile (host aliases in `~/.ssh/config`, loaded into ssh-agent)
 - [ ] Adapters for Gemini CLI, GitHub Copilot CLI and OpenCode
 - [ ] API key profiles (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, ...) with `cream env work`
-- [ ] Per-folder `.cream` files that pick a profile
 - [ ] npm and PyPI tokens
 - [ ] Cloud CLIs: AWS, gcloud, Azure, kubectl
 - [ ] Encrypted export and import of profiles between machines
