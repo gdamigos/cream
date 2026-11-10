@@ -54,6 +54,7 @@ A full example with every setting is in [`examples/config.toml`](../examples/con
 | `vault.backend` | `auto` | `auto` uses the OS keyring when there is one and the encrypted file otherwise. `keyring` and `file` force one. |
 | `git.strict` | `true` | once you have identity rules, repos that match none of them can't commit. Set it to `false` to keep the active profile as a fallback identity. With no rules the active profile is always the global identity. |
 | `lock.all`, `lock.profiles` | empty | set by `cream lock` and cleared by `cream unlock`. Don't edit them by hand, the saved logins are in the vault. |
+| `profiles.<name>.password` | none | set by `cream profile password`: the profile's public key and its encrypted data. Don't edit it by hand. |
 
 ## Environment variables
 
@@ -63,6 +64,7 @@ A full example with every setting is in [`examples/config.toml`](../examples/con
 | `XDG_CONFIG_HOME` | when set, cream uses `$XDG_CONFIG_HOME/cream` |
 | `CREAM_NO_UPDATE_CHECK=1` | turns off the update check (it is also off in CI) |
 | `CREAM_VAULT_PASSPHRASE` | passphrase for the encrypted file vault, for scripts |
+| `CREAM_PROFILE_PASSWORD` | the password of a [protected profile](USAGE.md#password-protected-profiles), for scripts |
 | `CREAM_NO_INTRO=1` | skips the intro animation |
 | `CREAM_PROFILE` | set by `cream run` inside the program it starts |
 

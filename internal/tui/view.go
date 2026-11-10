@@ -238,7 +238,9 @@ func (m Model) viewProfiles(w, h int) string {
 		}
 		accts := len(p.Accounts)
 		sub := fmt.Sprintf("%d/%d tools", accts, len(m.mgr.Adapters))
-		if len(p.Rules) > 0 {
+		if p.Protected() {
+			sub = "password protected"
+		} else if len(p.Rules) > 0 {
 			sub += fmt.Sprintf(" · %d rule", len(p.Rules))
 			if len(p.Rules) > 1 {
 				sub += "s"
@@ -311,7 +313,9 @@ func (m Model) viewStatus(w int) string {
 			live = sBase.Render(truncate(s.Live.Account, colLive-3))
 		}
 		prof := sFaint.Render("–  nothing saved")
-		if sel != nil {
+		if sel != nil && sel.Protected() {
+			prof = sFaint.Render("–  hidden")
+		} else if sel != nil {
 			if a := sel.Accounts[s.ID]; a != nil {
 				switch {
 				case s.Live.LoggedIn && s.Live.Account == a.Label:
@@ -347,12 +351,28 @@ func (m Model) viewStatus(w int) string {
 func (m Model) profileCard(p *config.Profile, w int) string {
 	label := func(s string) string { return sFaint.Render(pad(s, 14)) }
 	rows := []string{m.profileDot(p.Name) + " " + sBold.Render(p.Name) + "  " + sDim.Render(p.Description)}
-	if p.Git.IsZero() {
+	if p.Protected() {
+		rows = []string{m.profileDot(p.Name) + " " + sBold.Render(p.Name),
+			sDim.Render("password protected · its accounts, git identity and rules stay hidden"),
+			sDim.Render("every action on it asks for the password")}
+	} else if p.Git.IsZero() {
 		rows = append(rows, label("git identity")+sFaint.Render("none · press e"))
 	} else {
 		rows = append(rows, label("git identity")+sBase.Render(p.Git.Name)+sDim.Render(" <"+p.Git.Email+">"))
 	}
-	rows = append(rows, label("rules")+sBase.Render(fmt.Sprintf("%d", len(p.Rules))))
+	if !p.Protected() {
+		rows = append(rows, m.cardDetails(p, label)...)
+	}
+	if !p.Created.IsZero() {
+		rows = append(rows, label("created")+sDim.Render(p.Created.Local().Format("2006-01-02")))
+	}
+	return lipgloss.NewStyle().Border(lipgloss.NormalBorder(), false, false, false, true).
+		BorderForeground(lipgloss.Color(orDefault(p.Color, string(cAccent)))).PaddingLeft(1).
+		Width(min(w-2, 70)).Render(strings.Join(rows, "\n"))
+}
+
+func (m Model) cardDetails(p *config.Profile, label func(string) string) []string {
+	rows := []string{label("rules") + sBase.Render(fmt.Sprintf("%d", len(p.Rules)))}
 	var newest time.Time
 	for _, a := range p.Accounts {
 		if a.Imported.After(newest) {
@@ -362,13 +382,7 @@ func (m Model) profileCard(p *config.Profile, w int) string {
 	if !newest.IsZero() {
 		rows = append(rows, label("last import")+sBase.Render(humanTime(newest)))
 	}
-	rows = append(rows, m.usageRows(p, label)...)
-	if !p.Created.IsZero() {
-		rows = append(rows, label("created")+sDim.Render(p.Created.Local().Format("2006-01-02")))
-	}
-	return lipgloss.NewStyle().Border(lipgloss.NormalBorder(), false, false, false, true).
-		BorderForeground(lipgloss.Color(orDefault(p.Color, string(cAccent)))).PaddingLeft(1).
-		Width(min(w-2, 70)).Render(strings.Join(rows, "\n"))
+	return append(rows, m.usageRows(p, label)...)
 }
 
 func orDefault(s, d string) string {

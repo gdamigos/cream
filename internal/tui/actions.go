@@ -185,7 +185,7 @@ func (m Model) execute(p pending) (tea.Model, tea.Cmd) {
 			} else {
 				evs, err = mgr.Unlock(context.Background(), p.profile, dry, progress)
 			}
-			done := opDoneMsg{title: verb + what, err: err, dry: dry, events: evs}
+			done := opDoneMsg{title: verb + what, err: err, dry: dry, events: evs, again: &p}
 			for _, e := range evs {
 				done.changes = append(done.changes, e.Changes...)
 			}
@@ -197,7 +197,7 @@ func (m Model) execute(p pending) (tea.Model, tea.Cmd) {
 		m.busy, m.busyLabel = true, "restoring"
 		return m, func() tea.Msg {
 			snap, err := mgr.Restore(context.Background(), p.backupID, dry)
-			d := opDoneMsg{title: "backup restored", err: err, dry: dry}
+			d := opDoneMsg{title: "backup restored", err: err, dry: dry, again: &p}
 			if err == nil && dry {
 				for _, f := range snap.Files {
 					d.changes = append(d.changes, adapter.Change{Kind: "file", Target: f.Path, Action: "restore"})

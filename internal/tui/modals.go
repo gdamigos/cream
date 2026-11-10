@@ -49,7 +49,7 @@ func (m Model) viewHelp() string {
 		{"→", "on Status: pick one tool, then enter or i act on it only"},
 		{"r", "run one tool as the profile, this terminal only"},
 		{"i", "import the currently logged-in accounts"},
-		{"n / e / x", "new / edit / delete profile"},
+		{"n / e / x", "new / edit / delete profile, a password is set in n or e"},
 		{"x on a tool", "forget the account the profile saved for it"},
 		{"a", "add a git identity rule (folder or remote host)"},
 		{"L / ctrl+l", "lock or unlock the profile / everything"},

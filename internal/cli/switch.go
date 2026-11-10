@@ -31,8 +31,8 @@ labels such as e-mail addresses are written to config.toml.`,
 			if err != nil {
 				return err
 			}
-			p, err := m.Cfg.Profile(args[0])
-			if err != nil {
+			var p *config.Profile
+			if err := a.withPasswords(m, func() (err error) { p, err = m.Profile(args[0]); return err }); err != nil {
 				return err
 			}
 			if glHost != "" {
@@ -71,7 +71,11 @@ func newUseCmd(a *App) *cobra.Command {
 			}
 			a.dryBanner()
 			a.printf("%s %s\n", sTitle.Render("Switching to"), sBold.Render(args[0]))
-			res, err := m.Use(cmd.Context(), args[0], core.UseOptions{DryRun: a.DryRun, Only: splitList(only)}, nil)
+			var res *core.UseResult
+			err = a.withPasswords(m, func() (err error) {
+				res, err = m.Use(cmd.Context(), args[0], core.UseOptions{DryRun: a.DryRun, Only: splitList(only)}, nil)
+				return err
+			})
 			if res != nil {
 				a.printEvents(res.Events)
 				if a.DryRun {
@@ -107,8 +111,8 @@ GitHub and GitLab tokens are passed via the child's environment only.`,
 			profile, argv := args[0], args[1:]
 			if a.DryRun {
 				a.dryBanner()
-				p, err := m.Cfg.Profile(profile)
-				if err != nil {
+				var p *config.Profile
+				if err := a.withPasswords(m, func() (err error) { p, err = m.Profile(profile); return err }); err != nil {
 					return err
 				}
 				for _, ad := range m.Adapters {
@@ -119,7 +123,12 @@ GitHub and GitLab tokens are passed via the child's environment only.`,
 				a.printf("  %s %s %s\n", sDim.Render("→"), sBold.Render("exec   "), strings.Join(argv, " "))
 				return nil
 			}
-			vars, finish, warns, err := m.SessionEnv(cmd.Context(), profile, argv[0])
+			var vars, warns []string
+			var finish func()
+			err = a.withPasswords(m, func() (err error) {
+				vars, finish, warns, err = m.SessionEnv(cmd.Context(), profile, argv[0])
+				return err
+			})
 			if err != nil {
 				return err
 			}

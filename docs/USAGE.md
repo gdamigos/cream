@@ -35,7 +35,7 @@ Run `cream` with no arguments.
 | `→` then `x` | on the Status tab, pick one tool and forget the account the profile saved for it |
 | `r` | run Claude Code, Codex, gh, glab or a shell as the profile, in this terminal only |
 | `i` | save the accounts you are logged in to now into the profile |
-| `n` `e` `x` | new, edit or delete a profile (deleting also removes its saved logins) |
+| `n` `e` `x` | new, edit or delete a profile (deleting also removes its saved logins). The form also sets, changes or removes a [password](#password-protected-profiles). |
 | `a` | add a git identity rule (remote host or folder) |
 | `L` / `ctrl+l` | lock or unlock the selected profile / everything |
 | `S` | with the [usage check](#usage-and-stale-logins) on, switch a tool that hit its plan limit to the profile with the most room left (shows a preview first) |
@@ -53,10 +53,11 @@ Every command accepts `--dry-run` (`-n`) and `--no-update-check`.
 
 ```text
 cream                                   open the UI (prints the status when not in a terminal)
-cream profile add <name> [--git-name … --git-email … --signing-key … -d …]
+cream profile add <name> [--git-name … --git-email … --signing-key … -d … --password]
 cream profile set <name> [--git-name … --git-email … --signing-key … -d …]
+cream profile password <name> [--remove]   set, change or remove a profile's password
 cream profile list
-cream profile remove <name> --yes       also deletes its saved logins
+cream profile remove <name> --yes [--forgot-password]   also deletes its saved logins
 cream profile forget <name> --only claude[,…] --yes   drop saved logins, keep the profile
 cream import <profile> [--only claude,codex,github,gitlab,git] [--gitlab-host HOST]
 cream use <profile> [--only …]          switch every tool
@@ -91,6 +92,16 @@ cream use work --only github,gitlab,git
 
 - `cream use work` changes every tool's login files, so every new terminal and editor uses `work`.
 - `cream run work claude` starts only that program as `work` and leaves everything else alone, so two accounts can run side by side. Put `--` before a command with its own flags: `cream run personal -- gh pr list`.
+
+## Password protected profiles
+
+When several people share one computer, each can protect their profile with a password: `cream profile password alice`, `--password` on `profile add`, or the password fields in the `n` and `e` forms. It needs at least 8 characters.
+
+A protected profile shows only its name. Its accounts, git identity, rules and description are encrypted, and the UI, `profile list`, `rule list`, `status` and `doctor` show nothing about them. Switching to it, `cream run`, import, edit, forget, lock, unlock, delete and restoring its backups all ask for the password, every time. Switching away from it needs no password.
+
+While it is the active profile its logins are live in the tools, like any other profile. When you switch away, its git rules leave `~/.gitconfig` and its gh account is logged out of gh until you switch back. Switch every tool when you leave it, since `--only` leaves the other tools logged in.
+
+Outside a terminal, set `CREAM_PROFILE_PASSWORD`. A forgotten password can't be recovered: `cream profile remove <name> --yes --forgot-password` deletes the profile and its saved data.
 
 ## Usage and stale logins
 

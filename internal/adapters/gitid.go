@@ -258,7 +258,10 @@ func (g GitIdentity) Activate(ctx context.Context, env *adapter.Env, p *config.P
 	if p.Git.IsZero() {
 		return nil, adapter.ErrNotImported{Adapter: g.ID(), Profile: p.Name}
 	}
-	return Sync(env, env.Config, Fallback(env.Config, p), dryRun)
+	// p becomes the active profile, which a password protected one needs to show its rules
+	view := *env.Config
+	view.Active = p.Name
+	return Sync(env, &view, Fallback(&view, p), dryRun)
 }
 
 // with no rules the active profile is the global identity, strict only kicks in once rules exist
@@ -270,35 +273,50 @@ func Fallback(cfg *config.Config, active *config.Profile) *config.Profile {
 }
 
 func hasAnyRule(cfg *config.Config) bool {
-	for _, p := range cfg.Profiles {
-		if len(p.Rules) > 0 {
+	for name, p := range cfg.Profiles {
+		if len(p.Rules) > 0 && !hiddenProfile(cfg, name) {
 			return true
 		}
 	}
 	return false
 }
 
-// locked profiles lose their rules and can't be the fallback, with everything locked no identity is left
+// password protected profiles only have git rules while they are active
+func hiddenProfile(cfg *config.Config, name string) bool {
+	p := cfg.Profiles[name]
+	return p != nil && p.Protected() && name != cfg.Active
+}
+
+// locked and hidden profiles lose their rules and can't be the fallback, with everything locked no identity is left
 func unlockedView(cfg *config.Config, fallback *config.Profile) (*config.Config, *config.Profile) {
-	if !cfg.AnyLocked() {
-		return cfg, fallback
-	}
 	view := *cfg
 	view.Profiles = map[string]*config.Profile{}
 	for name, p := range cfg.Profiles {
-		if !cfg.Locked(name) {
+		if !cfg.Locked(name) && !hiddenProfile(cfg, name) {
 			view.Profiles[name] = p
 		}
 	}
-	if fallback != nil && cfg.Locked(fallback.Name) {
+	if fallback != nil && (cfg.Locked(fallback.Name) || hiddenProfile(cfg, fallback.Name)) {
 		fallback = nil
 	}
 	return &view, fallback
 }
 
 func Sync(env *adapter.Env, cfg *config.Config, fallback *config.Profile, dryRun bool) ([]adapter.Change, error) {
-	cfg, fallback = unlockedView(cfg, fallback)
 	var changes []adapter.Change
+	// a password protected profile's name and email only stay on disk while it is active
+	for _, name := range cfg.Names() {
+		path := profileGitFile(env, name)
+		if hiddenProfile(cfg, name) && fsutil.Exists(path) {
+			changes = append(changes, adapter.Change{Adapter: "git", Kind: "file", Target: path, Action: "delete"})
+			if !dryRun {
+				if err := fsutil.RemoveIfExists(path); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	cfg, fallback = unlockedView(cfg, fallback)
 	for _, name := range cfg.Names() {
 		p := cfg.Profiles[name]
 		if p.Git.IsZero() {

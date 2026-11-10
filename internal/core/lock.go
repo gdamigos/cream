@@ -43,7 +43,7 @@ func (m *Manager) Lock(ctx context.Context, profile string, dryRun bool, progres
 	var p *config.Profile
 	if profile != "" {
 		var err error
-		if p, err = m.Cfg.Profile(profile); err != nil {
+		if p, err = m.Profile(profile); err != nil {
 			return nil, err
 		}
 		if m.Cfg.Locked(profile) {
@@ -194,6 +194,16 @@ func (m *Manager) Unlock(ctx context.Context, profile string, dryRun bool, progr
 			return nil, fmt.Errorf("profile %q is not locked", profile)
 		}
 		scopes = []string{profile}
+	}
+	// saved logins of a protected profile, and of everything while one was active, need its password
+	for _, scope := range scopes {
+		owner := scope
+		if scope == vault.LockAll {
+			owner = m.Cfg.Active
+		}
+		if m.NeedsPassword(owner) {
+			return nil, PasswordRequired{owner}
+		}
 	}
 
 	snap, err := m.capture(m.Adapters, "unlock-"+lockLabel(profile), m.Cfg.Active, m.Cfg.Active)

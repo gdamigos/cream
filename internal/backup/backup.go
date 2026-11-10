@@ -36,6 +36,8 @@ type Snapshot struct {
 	To      string                       `json:"to"`
 	Files   []FileEntry                  `json:"files"`
 	Extra   map[string]map[string][]byte `json:"extra,omitempty"` // keyed by adapter id
+	// a password protected profile whose live logins are in here, only its key opens the backup
+	Owner string `json:"owner,omitempty"`
 }
 
 type Info struct {
@@ -43,11 +45,15 @@ type Info struct {
 	Created time.Time
 	Path    string
 	Reason  string
+	Owner   string
 }
 
 type Store struct {
 	Dir   string
 	Vault vault.Vault
+	// set by core for password protected profiles
+	Recipient func(owner string) (age.Recipient, error)
+	Identity  func(owner string) (age.Identity, error)
 }
 
 func (s *Store) identity() (*age.X25519Identity, error) {
@@ -94,8 +100,49 @@ func Capture(paths []string) (*Snapshot, error) {
 	return snap, nil
 }
 
-func (s *Store) Save(snap *Snapshot) (string, error) {
+func (s *Store) recipient(owner string) (age.Recipient, error) {
+	if owner != "" {
+		if s.Recipient == nil {
+			return nil, fmt.Errorf("no key for %q's backups", owner)
+		}
+		return s.Recipient(owner)
+	}
 	id, err := s.identity()
+	if err != nil {
+		return nil, err
+	}
+	return id.Recipient(), nil
+}
+
+func (s *Store) identityFor(owner string) (age.Identity, error) {
+	if owner != "" {
+		if s.Identity == nil {
+			return nil, fmt.Errorf("no key for %q's backups", owner)
+		}
+		return s.Identity(owner)
+	}
+	return s.identity()
+}
+
+// <id>_<reason>[~<owner>].age, the owner says whose password opens it
+func fileName(id, reason, owner string) string {
+	if owner != "" {
+		return id + "_" + reason + "~" + owner + ".age"
+	}
+	return id + "_" + reason + ".age"
+}
+
+func (s *Store) Save(snap *Snapshot) (string, error) {
+	path, err := s.write(snap)
+	if err != nil {
+		return "", err
+	}
+	s.prune()
+	return path, nil
+}
+
+func (s *Store) write(snap *Snapshot) (string, error) {
+	rcp, err := s.recipient(snap.Owner)
 	if err != nil {
 		return "", err
 	}
@@ -104,7 +151,7 @@ func (s *Store) Save(snap *Snapshot) (string, error) {
 		return "", err
 	}
 	var out bytes.Buffer
-	w, err := age.Encrypt(&out, id.Recipient())
+	w, err := age.Encrypt(&out, rcp)
 	if err != nil {
 		return "", err
 	}
@@ -117,12 +164,10 @@ func (s *Store) Save(snap *Snapshot) (string, error) {
 	if err := os.MkdirAll(s.Dir, 0o700); err != nil {
 		return "", err
 	}
-	reason := sanitize(snap.Reason)
-	path := filepath.Join(s.Dir, snap.ID+"_"+reason+".age")
+	path := filepath.Join(s.Dir, fileName(snap.ID, sanitize(snap.Reason), snap.Owner))
 	if err := fsutil.WriteFileAtomic(path, out.Bytes(), 0o600); err != nil {
 		return "", err
 	}
-	s.prune()
 	return path, nil
 }
 
@@ -159,12 +204,13 @@ func (s *Store) List() ([]Info, error) {
 			continue
 		}
 		base := strings.TrimSuffix(name, ".age")
-		id, reason, _ := strings.Cut(base, "_")
+		id, rest, _ := strings.Cut(base, "_")
+		reason, owner, _ := strings.Cut(rest, "~")
 		t, err := time.Parse("20060102T150405.000000000Z", id)
 		if err != nil {
 			continue
 		}
-		out = append(out, Info{ID: id, Created: t, Path: filepath.Join(s.Dir, name), Reason: reason})
+		out = append(out, Info{ID: id, Created: t, Path: filepath.Join(s.Dir, name), Reason: reason, Owner: owner})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID > out[j].ID })
 	return out, nil
@@ -202,7 +248,11 @@ func (s *Store) Load(id string) (*Snapshot, error) {
 	if info == nil {
 		return nil, fmt.Errorf("backup %q not found", id)
 	}
-	ident, err := s.identity()
+	return s.load(*info)
+}
+
+func (s *Store) load(info Info) (*Snapshot, error) {
+	ident, err := s.identityFor(info.Owner)
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +272,50 @@ func (s *Store) Load(id string) (*Snapshot, error) {
 	if err := json.Unmarshal(plain, &snap); err != nil {
 		return nil, err
 	}
+	snap.Owner = info.Owner
 	return &snap, nil
+}
+
+// re-encrypts the backups holding owner's live logins to owner's key, after a password is set
+func (s *Store) SealFor(owner string) error {
+	return s.rewrap("", func(snap *Snapshot) bool { return snap.From == owner }, owner)
+}
+
+// re-encrypts owner's backups to the shared backup key, before its password is removed
+func (s *Store) UnsealFor(owner string) error {
+	return s.rewrap(owner, func(*Snapshot) bool { return true }, "")
+}
+
+// only backups currently sealed for from are opened, others may need a password we don't have
+func (s *Store) rewrap(from string, match func(*Snapshot) bool, to string) error {
+	list, err := s.List()
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, info := range list {
+		if info.Owner != from {
+			continue
+		}
+		snap, err := s.load(info)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if !match(snap) {
+			continue
+		}
+		snap.Owner = to
+		path, err := s.write(snap)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if path != info.Path {
+			errs = append(errs, os.Remove(info.Path))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // files that did not exist at snapshot time get deleted

@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/gdamigos/cream/internal/adapter"
 	"github.com/gdamigos/cream/internal/config"
 )
 
@@ -40,7 +41,8 @@ for --remote rules.`,
 				return errors.New("need --dir <path> or --remote <host>")
 			}
 			a.dryBanner()
-			changes, err := m.AddRule(args[0], r, a.DryRun)
+			var changes []adapter.Change
+			err = a.withPasswords(m, func() (err error) { changes, err = m.AddRule(args[0], r, a.DryRun); return err })
 			if err != nil {
 				return err
 			}
@@ -67,6 +69,9 @@ for --remote rules.`,
 			n := 0
 			for _, name := range m.Cfg.Names() {
 				p := m.Cfg.Profiles[name]
+				if p.Protected() {
+					continue
+				}
 				for i, r := range p.Rules {
 					a.printf("  %s #%d  %-6s %-40s → %s\n", sBold.Render(name), i+1, r.Kind, r.Pattern, sDim.Render(p.Git.Email))
 					n++
@@ -93,7 +98,8 @@ for --remote rules.`,
 				return fmt.Errorf("rule number: %w", err)
 			}
 			a.dryBanner()
-			changes, err := m.RemoveRule(args[0], n-1, a.DryRun)
+			var changes []adapter.Change
+			err = a.withPasswords(m, func() (err error) { changes, err = m.RemoveRule(args[0], n-1, a.DryRun); return err })
 			if err != nil {
 				return err
 			}

@@ -29,10 +29,10 @@ func (m *Manager) StaleLogins(now time.Time) []StaleLogin {
 	}
 	var out []StaleLogin
 	for _, name := range m.Cfg.Names() {
-		if name == m.Cfg.Active {
+		p := m.Cfg.Profiles[name]
+		if name == m.Cfg.Active || p.Protected() {
 			continue
 		}
-		p := m.Cfg.Profiles[name]
 		for _, a := range m.Adapters {
 			acct := p.Accounts[a.ID()]
 			if acct == nil || !secretAdapters[a.ID()] {

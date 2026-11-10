@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"slices"
@@ -90,6 +91,7 @@ const (
 	formNewProfile formKind = iota
 	formEditProfile
 	formRule
+	formPassword
 )
 
 // lives on the heap so huh keeps valid pointers when the model is copied
@@ -98,6 +100,8 @@ type formData struct {
 	profile                     string
 	name, desc, gName, gEmail   string
 	gKey, ruleKind, rulePattern string
+	pw, pwAgain                 string
+	removePw                    bool
 }
 
 type step struct {
@@ -132,6 +136,7 @@ type opDoneMsg struct {
 	changes []adapter.Change
 	events  []core.Event
 	dry     bool
+	again   *pending // runs again once a password it asked for is entered
 }
 type previewMsg struct {
 	p   pending
@@ -182,6 +187,7 @@ type Model struct {
 	runOpts    []runChoice
 	runCursor  int
 	result     *opDoneMsg
+	afterPw    func(Model) (tea.Model, tea.Cmd) // what the password window unlocks, see password.go
 
 	toasts  []toast
 	upd     *update.Result
@@ -435,6 +441,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case opDoneMsg:
 		m.busy, m.opCh = false, nil
+		var pr core.PasswordRequired
+		if errors.As(msg.err, &pr) && msg.again != nil {
+			again := *msg.again
+			return m.openPasswordForm(pr.Profile, func(m Model) (tea.Model, tea.Cmd) { return m.execute(again) })
+		}
+		m.mgr.Reseal()
 		cmds := []tea.Cmd{m.loadStatus(), m.loadBackups(), m.bar.SetPercent(1)}
 		if msg.err != nil {
 			m.toast(2, "%s", firstLine(msg.err.Error()))
@@ -448,6 +460,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case execDoneMsg:
+		m.mgr.Reseal()
 		if msg.err != nil {
 			m.toast(2, "%s: %s", msg.label, msg.err.Error())
 		} else {
@@ -559,6 +572,9 @@ func (m Model) allRules() []ruleRef {
 	var out []ruleRef
 	for _, n := range m.names() {
 		p := m.mgr.Cfg.Profiles[n]
+		if p.Protected() {
+			continue
+		}
 		for i, r := range p.Rules {
 			out = append(out, ruleRef{n, i, r, p.Git.Email})
 		}

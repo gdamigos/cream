@@ -8,7 +8,7 @@ Each tool is handled by an **adapter** that knows where that tool keeps its logi
 | --- | --- | --- | --- |
 | **Claude Code** | Windows and Linux: `~/.claude/.credentials.json` and the `oauthAccount` part of `~/.claude.json` (everything else in it is kept). macOS: the Keychain item `Claude Code-credentials` and `~/.claude.json`. Honours `CLAUDE_CONFIG_DIR`. | `CLAUDE_CONFIG_DIR=<cream>/sessions/<profile>/claude`. Refreshed tokens are saved back when the session ends. | `profile:<name>:claude` |
 | **Codex** | `$CODEX_HOME/auth.json` (default `~/.codex`). Needs `cli_auth_credentials_store = "file"` in Codex's `config.toml`, and `cream status` warns if it is missing. | `CODEX_HOME=<cream>/sessions/<profile>/codex` | `profile:<name>:codex` |
-| **GitHub CLI** | Runs `gh auth switch --hostname H --user U`, using gh's own support for several accounts. cream stores no GitHub secret. `hosts.yml` is backed up. | `GH_TOKEN`, read from `gh auth token` | nothing |
+| **GitHub CLI** | Runs `gh auth switch --hostname H --user U`, using gh's own support for several accounts. cream stores no GitHub secret, except for [password protected profiles](#password-protected-profiles). `hosts.yml` is backed up. | `GH_TOKEN`, read from `gh auth token` | nothing, or `profile:<name>:github` for a protected profile that isn't active |
 | **GitLab CLI** | The `hosts.<host>` part of glab's `config.yml`, edited in place so your comments are kept | `GITLAB_TOKEN`, `GITLAB_HOST` | `profile:<name>:gitlab` |
 | **Git identity** | A marked block at the end of `~/.gitconfig` (or `$GIT_CONFIG_GLOBAL`) plus `<cream>/git/<profile>.gitconfig`. Nothing outside the block is touched. | nothing, the identity follows the switch or the repo's rules | nothing |
 
@@ -20,6 +20,7 @@ Everything lives in **`~/.config/cream/`** on every OS. You can move it with `CR
 ~/.config/cream/
 ├── config.toml          profiles, account names, rules and settings, never secrets
 ├── backups/*.age        encrypted backups, only readable by you, the last 20 are kept
+│                        (*~<profile>.age: only that protected profile's password opens it)
 ├── git/<profile>.gitconfig
 ├── sessions/<profile>/  separate homes for `cream run`
 ├── vault.age            only when there is no OS keyring

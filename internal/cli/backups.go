@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/gdamigos/cream/internal/adapter"
+	"github.com/gdamigos/cream/internal/backup"
 )
 
 func newRestoreCmd(a *App) *cobra.Command {
@@ -21,7 +22,8 @@ func newRestoreCmd(a *App) *cobra.Command {
 				id = args[0]
 			}
 			a.dryBanner()
-			snap, err := m.Restore(cmd.Context(), id, a.DryRun)
+			var snap *backup.Snapshot
+			err = a.withPasswords(m, func() (err error) { snap, err = m.Restore(cmd.Context(), id, a.DryRun); return err })
 			if err != nil {
 				return err
 			}

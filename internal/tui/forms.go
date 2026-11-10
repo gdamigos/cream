@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -57,6 +58,8 @@ func (m Model) openProfileForm(kind formKind, p *config.Profile) (tea.Model, tea
 		huh.NewInput().Title("Signing key (optional)").Value(&fd.gKey),
 	)
 	titles = append(titles, "Description", "Git user.name", "Git user.email", "Signing key (optional)")
+	pwFields, pwTitles := passwordFields(fd, p != nil && p.Protected())
+	fields, titles = append(fields, pwFields...), append(titles, pwTitles...)
 	title := "New profile"
 	if kind == formEditProfile {
 		title = "Edit " + p.Name
@@ -94,8 +97,7 @@ func (m Model) openRuleForm(p *config.Profile) (tea.Model, tea.Cmd) {
 
 func (m Model) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if k, ok := msg.(tea.KeyMsg); ok && k.String() == "esc" {
-		m.modal, m.form = modalNone, nil
-		return m, nil
+		return m.closeForm(), nil
 	}
 	fm, cmd := m.form.Update(msg)
 	if f, ok := fm.(*huh.Form); ok {
@@ -103,8 +105,7 @@ func (m Model) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	switch m.form.State {
 	case huh.StateAborted:
-		m.modal, m.form = modalNone, nil
-		return m, nil
+		return m.closeForm(), nil
 	case huh.StateCompleted:
 		m.modal, m.form = modalNone, nil
 		return m.submitForm()
@@ -112,8 +113,24 @@ func (m Model) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// a cancelled form also forgets any password entered for it
+func (m Model) closeForm() Model {
+	m.modal, m.form, m.afterPw = modalNone, nil, nil
+	if m.fdata != nil {
+		m.fdata.pw, m.fdata.pwAgain = "", ""
+	}
+	m.mgr.Reseal()
+	return m
+}
+
 func (m Model) submitForm() (tea.Model, tea.Cmd) {
 	fd := m.fdata
+	if fd.kind == formPassword {
+		return m.submitPassword(fd)
+	}
+	defer m.mgr.Reseal()
+	pw := fd.pw
+	fd.pw, fd.pwAgain = "", ""
 	git := config.GitIdentity{Name: strings.TrimSpace(fd.gName), Email: strings.TrimSpace(fd.gEmail), SigningKey: strings.TrimSpace(fd.gKey)}
 	switch fd.kind {
 	case formNewProfile:
@@ -131,15 +148,26 @@ func (m Model) submitForm() (tea.Model, tea.Cmd) {
 				m.cursor = i
 			}
 		}
+		if pw != "" {
+			if _, err := m.mgr.SetPassword(context.Background(), fd.name, "", pw, false); err != nil {
+				m.toast(2, "%s", err.Error())
+				return m, nil
+			}
+		}
 		m.toast(1, "profile %s created · log in to your tools, then press i", fd.name)
 	case formEditProfile:
-		p, err := m.mgr.Cfg.Profile(fd.profile)
+		p, err := m.mgr.Profile(fd.profile)
 		if err != nil {
 			m.toast(2, "%s", err.Error())
 			return m, nil
 		}
 		if m.dryRun {
 			res := opDoneMsg{title: "edit profile", dry: true, changes: []adapter.Change{{Kind: "file", Target: m.mgr.Paths.ConfigFile(), Action: "patch"}}}
+			if fd.removePw {
+				res.changes, _ = m.mgr.RemovePassword(context.Background(), p.Name, "", true)
+			} else if pw != "" {
+				res.changes, _ = m.mgr.SetPassword(context.Background(), p.Name, "", pw, true)
+			}
 			m.result, m.modal = &res, modalResult
 			return m, nil
 		}
@@ -153,6 +181,16 @@ func (m Model) submitForm() (tea.Model, tea.Cmd) {
 				m.toast(2, "%s", err.Error())
 				return m, nil
 			}
+		}
+		switch {
+		case fd.removePw:
+			_, err = m.mgr.RemovePassword(context.Background(), p.Name, "", false)
+		case pw != "":
+			_, err = m.mgr.SetPassword(context.Background(), p.Name, "", pw, false)
+		}
+		if err != nil {
+			m.toast(2, "%s", err.Error())
+			return m, nil
 		}
 		m.toast(1, "profile %s saved", p.Name)
 	case formRule:

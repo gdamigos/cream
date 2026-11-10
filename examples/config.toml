@@ -80,3 +80,13 @@ refreshed = 2026-01-14T18:00:00Z  # when codex last refreshed this login, set by
 label = "cream-example"
 host = "github.com"
 imported = 2026-01-15T09:13:00Z
+
+# a password protected profile, set by `cream profile password guest`, don't edit by hand
+# everything but its name is in `sealed`, encrypted to `recipient`
+[profiles.guest]
+color = "#8FB8DE"
+created = 2026-01-16T10:00:00Z
+
+[profiles.guest.password]
+recipient = "age1..."
+sealed = "YWdlLWVuY3J5cHRpb24ub3JnL3Yx..."

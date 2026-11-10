@@ -40,7 +40,7 @@ func (h *harness) run(args ...string) (string, string, int) {
 		Build: BuildInfo{Version: "v0.0.0-test", Commit: "abc", Date: "today"},
 		Out:   &out, Err: &errb,
 		Open: func() (*core.Manager, error) {
-			m, err := core.Open(core.Options{Paths: &h.p, Vault: h.v, Runner: h.r})
+			m, err := core.Open(core.Options{Paths: &h.p, Vault: h.v, Runner: h.r, KDFWorkFactor: 10})
 			if m != nil {
 				m.Env.GOOS = "linux" // file based logins on every host, macos would use the keychain
 			}
