@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -141,51 +142,60 @@ Start with -- when a command has the same name as a profile.`,
 				profile, argv = f.Profile, args
 				fmt.Fprintln(a.Err, sDim.Render("cream: "+profile+" from "+f.Path))
 			}
-			if a.DryRun {
-				a.dryBanner()
-				var p *config.Profile
-				if err := a.withPasswords(m, func() (err error) { p, err = m.Profile(profile); return err }); err != nil {
-					return err
-				}
-				for _, ad := range m.Adapters {
-					if p.Accounts[ad.ID()] != nil && ad.ID() != "git" {
-						a.printf("  %s %s session env for %s\n", sDim.Render("→"), sBold.Render("set    "), ad.Name())
-					}
-				}
-				a.printf("  %s %s %s\n", sDim.Render("→"), sBold.Render("exec   "), strings.Join(argv, " "))
-				return nil
-			}
-			var vars, warns []string
-			var finish func()
-			err = a.withPasswords(m, func() (err error) {
-				vars, finish, warns, err = m.SessionEnv(cmd.Context(), profile, argv[0])
-				return err
-			})
-			if err != nil {
-				return err
-			}
-			for _, w := range warns {
-				fmt.Fprintln(a.Err, sWarn.Render("! ")+w)
-			}
-			bin, err := exec.LookPath(argv[0])
-			if err != nil {
-				return err
-			}
-			c := exec.Command(bin, argv[1:]...)
-			c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
-			c.Env = append(os.Environ(), vars...)
-			// the child handles ctrl+c, we only wait for it
-			signal.Ignore(os.Interrupt)
-			defer signal.Reset(os.Interrupt)
-			runErr := c.Run()
-			finish()
-			var ee *exec.ExitError
-			if errors.As(runErr, &ee) {
-				return &ExitError{Code: ee.ExitCode()}
-			}
-			return runErr
+			return a.runAs(cmd.Context(), m, profile, argv)
 		},
 	}
 	cmd.Flags().SetInterspersed(false)
 	return cmd
+}
+
+func (a *App) runAs(ctx context.Context, m *core.Manager, profile string, argv []string) error {
+	if a.DryRun {
+		a.dryBanner()
+		var p *config.Profile
+		if err := a.withPasswords(m, func() (err error) { p, err = m.Profile(profile); return err }); err != nil {
+			return err
+		}
+		for _, ad := range m.Adapters {
+			if p.Accounts[ad.ID()] != nil && ad.ID() != "git" {
+				a.printf("  %s %s session env for %s\n", sDim.Render("→"), sBold.Render("set    "), ad.Name())
+			}
+		}
+		a.printf("  %s %s %s\n", sDim.Render("→"), sBold.Render("exec   "), strings.Join(argv, " "))
+		return nil
+	}
+	var vars, warns []string
+	var finish func()
+	err := a.withPasswords(m, func() (err error) {
+		vars, finish, warns, err = m.SessionEnv(ctx, profile, argv[0])
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	for _, w := range warns {
+		fmt.Fprintln(a.Err, sWarn.Render("! ")+w)
+	}
+	defer finish()
+	return runChild(argv, vars)
+}
+
+// runs argv in this terminal with extra env vars, passing its exit code on
+func runChild(argv, vars []string) error {
+	bin, err := exec.LookPath(argv[0])
+	if err != nil {
+		return err
+	}
+	c := exec.Command(bin, argv[1:]...)
+	c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
+	c.Env = append(os.Environ(), vars...)
+	// the child handles ctrl+c, we only wait for it
+	signal.Ignore(os.Interrupt)
+	defer signal.Reset(os.Interrupt)
+	runErr := c.Run()
+	var ee *exec.ExitError
+	if errors.As(runErr, &ee) {
+		return &ExitError{Code: ee.ExitCode()}
+	}
+	return runErr
 }

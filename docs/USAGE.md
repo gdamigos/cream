@@ -64,6 +64,8 @@ cream import <profile> [--only claude,codex,github,gitlab,git] [--gitlab-host HO
 cream use [profile] [--only …]          switch every tool (no profile: the folder's .cream picks it)
 cream run [profile] <command> [args…]   run one tool as a profile, this terminal only
 cream init [profile] [--only …] [--force]   pick a profile for this folder (writes .cream)
+cream hook bash|zsh|fish|pwsh           shell functions that run claude, codex, gh and glab as the folder's profile
+cream prompt                            the profile in use, for your shell prompt
 cream lock [profile]                    log tools out on purpose and turn git identity off
 cream unlock [profile]                  put everything back
 cream status [--json]                   who is logged in to each tool
@@ -112,6 +114,26 @@ In that folder and every folder below it (the nearest `.cream` wins):
 - `cream doctor` warns when the file names a profile or tool that doesn't exist, and tells you when it isn't the active profile.
 
 In the UI, `f` writes the file for the selected profile. Without a profile, `cream init` uses the active one. Add `--force` to replace an existing file. Commit it to share it with your team, or add `.cream` to `.gitignore` to keep it to yourself. It only picks a profile and never switches anything by itself.
+
+### Tools that follow the folder
+
+`cream hook` prints `claude`, `codex`, `gh` and `glab` shell functions. Under a `.cream` folder whose profile isn't the active one they run through `cream run`, in that terminal only. Everywhere else they run as usual. Add one line to your shell's startup file:
+
+```sh
+eval "$(cream hook bash)"                            # ~/.bashrc (zsh: cream hook zsh in ~/.zshrc)
+cream hook fish | source                             # ~/.config/fish/config.fish
+cream hook pwsh | Out-String | Invoke-Expression     # $PROFILE
+```
+
+The functions leave git alone, since your git identity already follows [rules](HOW_IT_WORKS.md).
+
+`cream prompt` prints the profile in use in this terminal (the `cream run` one, otherwise the active one), with a `*` when the nearest `.cream` picks a different profile, for example `personal*`. It only reads files, so it's fast enough for every prompt. In starship:
+
+```toml
+[custom.cream]
+command = "cream prompt"
+when = true
+```
 
 ## Password protected profiles
 
