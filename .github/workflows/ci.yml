@@ -2,7 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # bot branches always get a PR, so CI runs there already
+    branches: ["**", "!dependabot/**", "!todo/**"]
   pull_request:
   workflow_dispatch:
 
@@ -105,13 +106,40 @@ jobs:
           go-version-file: go.mod
       - name: gofmt
         run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
-      - name: VERSION is valid semver
-        run: |
-          v="$(tr -d '[:space:]' < VERSION)"
-          [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "::error file=VERSION::'$v' is not semver"; exit 1; }
       - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           version: latest
+
+  # catches a VERSION the release workflow would refuse after the merge
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: VERSION releases cleanly
+        env:
+          BASE: ${{ github.base_ref || 'main' }}
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error file=VERSION::'$version' is not a semantic version (expected e.g. 0.1.0)"; exit 1
+          fi
+          was="$(git show "origin/$BASE:VERSION" 2>/dev/null | tr -d '[:space:]' || true)"
+          if [ "$version" = "$was" ]; then
+            echo "VERSION is still $version, merging to $BASE releases nothing"; exit 0
+          fi
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "::error file=VERSION::v$version is already released, so merging would tag nothing. Bump VERSION past it."; exit 1
+          fi
+          core="${version%%-*}"
+          latest="$(git tag --list 'v*' --sort=-v:refname | awk '/^v[0-9]+\.[0-9]+\.[0-9]+$/ { print; exit }')"
+          if [ -n "$latest" ] && ! printf '%s\n%s\n' "${latest#v}" "$core" | sort -V -C; then
+            echo "::error file=VERSION::$version is older than the latest release $latest. Bump VERSION past it."; exit 1
+          fi
+          echo "::notice::merging to $BASE releases v$version (latest is ${latest:-none})"
 
   vulncheck:
     needs: changes
