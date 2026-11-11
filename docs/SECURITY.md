@@ -18,6 +18,7 @@ Anything that breaks one of these is a security bug.
 - **The usage check is opt-in.** Only with `usage_check = true` does cream ask how much of their plan limits your Claude Code and Codex logins used: `GET https://api.anthropic.com/api/oauth/usage` and `GET https://chatgpt.com/backend-api/wham/usage`. Each login's token goes only to its own provider, in the `Authorization` header, and the answers are cached for 5 minutes in `usage.json`, which holds no tokens. cream never refreshes a token itself.
 - **Secrets are stored safely.** They live in your OS keyring (Windows Credential Manager, macOS Keychain, Secret Service) or, when there is none, in a file encrypted with [age](https://age-encryption.org). cream never writes them in plain text to its own files.
 - **Backups are encrypted.** Every backup of a credential file is encrypted with age and readable only by you.
+- **A password protected profile stays private.** Without its password nobody using cream can switch to it, run tools as it, restore its backups or read its saved logins, accounts, git identity or rules. They are encrypted to a key that only the password opens ([how](HOW_IT_WORKS.md#password-protected-profiles)).
 - **Secrets never show up** in output, logs, `config.toml` or command arguments. Keychain writes go through `security -i` on stdin, and tokens for `cream run` only go into the child process's environment.
 - **Nothing runs in the background.** No daemon, no open ports, no scheduled tasks, no admin rights.
 - **`--dry-run` works everywhere** and shows every file and keyring entry that would change.
@@ -26,6 +27,7 @@ Anything that breaks one of these is a security bug.
 
 - cream swaps the logins your tools already store. It doesn't change how Claude Code, Codex, gh or glab protect their own live credentials.
 - It isn't a defence against someone who already has access to your user account.
+- A protected profile's password guards its saved data, not its live session. While it is active its logins sit in the tools' own files like any other, and someone at the same account can still delete it or change the files by hand.
 
 ## Verifying releases
 

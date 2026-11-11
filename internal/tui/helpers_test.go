@@ -30,7 +30,7 @@ func newModel(t *testing.T) (Model, *core.Manager) {
 	home := t.TempDir()
 	p := paths.Paths{Home: home, CreamHome: filepath.Join(home, "cream")}
 	m, err := core.Open(core.Options{Paths: &p, Vault: vault.NewMemory(), Runner: testutil.NewFakeRunner(),
-		Adapters: []adapter.Adapter{adapters.Claude{}, adapters.Codex{}}})
+		Adapters: []adapter.Adapter{adapters.Claude{}, adapters.Codex{}}, KDFWorkFactor: 10})
 	if err != nil {
 		t.Fatal(err)
 	}

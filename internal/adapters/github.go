@@ -163,7 +163,13 @@ func (g GitHub) SessionEnv(ctx context.Context, env *adapter.Env, p *config.Prof
 	}
 	out, err := env.Run.Run(ctx, nil, nil, "gh", "auth", "token", "--hostname", a.Host, "--user", a.Label)
 	if err != nil {
-		return nil, nil, fmt.Errorf("read gh token for %s: %w", a.Label, err)
+		// a password protected profile that isn't active keeps its gh login in the vault instead
+		b, verr := env.Vault.Get(vault.ProfileKey(p.Name, g.ID()))
+		var l ghLocked
+		if verr != nil || json.Unmarshal(b, &l) != nil || l.Tokens[a.Label] == "" {
+			return nil, nil, fmt.Errorf("read gh token for %s: %w", a.Label, err)
+		}
+		out = []byte(l.Tokens[a.Label])
 	}
 	tok := strings.TrimSpace(string(out))
 	if tok == "" {

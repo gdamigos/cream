@@ -167,6 +167,9 @@ const LockAll = "*"
 
 const BackupIdentityKey = "cream:backup-identity"
 
+// a password protected profile's age identity, scrypt encrypted with the password
+func ProtectKey(profile string) string { return "protect:" + profile }
+
 func DeleteProfile(v Vault, profile string, adapters []string) {
 	for _, a := range adapters {
 		_ = v.Delete(ProfileKey(profile, a))

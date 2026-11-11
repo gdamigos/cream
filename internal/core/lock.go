@@ -37,13 +37,18 @@ func lockLabel(profile string) string {
 
 // logs the tools out on purpose and turns git identity off, an empty profile means everything
 func (m *Manager) Lock(ctx context.Context, profile string, dryRun bool, progress Progress) ([]Event, error) {
+	release, err := m.exclusive(dryRun)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	if m.Cfg.Lock.All {
 		return nil, errors.New("everything is already locked (run `cream unlock`)")
 	}
 	var p *config.Profile
 	if profile != "" {
 		var err error
-		if p, err = m.Cfg.Profile(profile); err != nil {
+		if p, err = m.Profile(profile); err != nil {
 			return nil, err
 		}
 		if m.Cfg.Locked(profile) {
@@ -176,6 +181,11 @@ func gitEvent(ch []adapter.Change, err error, msg string) Event {
 // puts the saved logins back, an empty profile unlocks everything including locked profiles
 // a failure stops here and keeps the lock, running unlock again retries what is left
 func (m *Manager) Unlock(ctx context.Context, profile string, dryRun bool, progress Progress) ([]Event, error) {
+	release, err := m.exclusive(dryRun)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	var scopes []string
 	if profile == "" {
 		if !m.Cfg.AnyLocked() {
@@ -194,6 +204,16 @@ func (m *Manager) Unlock(ctx context.Context, profile string, dryRun bool, progr
 			return nil, fmt.Errorf("profile %q is not locked", profile)
 		}
 		scopes = []string{profile}
+	}
+	// saved logins of a protected profile, and of everything while one was active, need its password
+	for _, scope := range scopes {
+		owner := scope
+		if scope == vault.LockAll {
+			owner = m.Cfg.Active
+		}
+		if m.NeedsPassword(owner) {
+			return nil, PasswordRequired{owner}
+		}
 	}
 
 	snap, err := m.capture(m.Adapters, "unlock-"+lockLabel(profile), m.Cfg.Active, m.Cfg.Active)

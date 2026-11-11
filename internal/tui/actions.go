@@ -2,6 +2,8 @@ package tui
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -90,6 +92,21 @@ func (m Model) confirmLock(profile string) (tea.Model, tea.Cmd) {
 		m.pend = &pending{kind: actLock, profile: profile, title: "Lock " + what + "?",
 			lines: append(lines, "", "Running Claude Code and Codex sessions keep working until restarted.")}
 	}
+	m.modal = modalConfirm
+	return m, nil
+}
+
+func (m Model) confirmFolder(profile string) (tea.Model, tea.Cmd) {
+	if m.opts.Dir == "" {
+		m.toast(2, "no folder to write .cream into, run cream init %s there", profile)
+		return m, nil
+	}
+	path := filepath.Join(m.opts.Dir, config.FolderFile)
+	lines := []string{"Writes " + path + ".", "Here and below, cream use and cream run without a profile use " + profile + "."}
+	if _, err := os.Stat(path); err == nil {
+		lines = append(lines, "Replaces the .cream already there.")
+	}
+	m.pend = &pending{kind: actFolder, profile: profile, title: "Pick " + profile + " for this folder?", lines: lines}
 	m.modal = modalConfirm
 	return m, nil
 }
@@ -185,7 +202,7 @@ func (m Model) execute(p pending) (tea.Model, tea.Cmd) {
 			} else {
 				evs, err = mgr.Unlock(context.Background(), p.profile, dry, progress)
 			}
-			done := opDoneMsg{title: verb + what, err: err, dry: dry, events: evs}
+			done := opDoneMsg{title: verb + what, err: err, dry: dry, events: evs, again: &p}
 			for _, e := range evs {
 				done.changes = append(done.changes, e.Changes...)
 			}
@@ -197,7 +214,7 @@ func (m Model) execute(p pending) (tea.Model, tea.Cmd) {
 		m.busy, m.busyLabel = true, "restoring"
 		return m, func() tea.Msg {
 			snap, err := mgr.Restore(context.Background(), p.backupID, dry)
-			d := opDoneMsg{title: "backup restored", err: err, dry: dry}
+			d := opDoneMsg{title: "backup restored", err: err, dry: dry, again: &p}
 			if err == nil && dry {
 				for _, f := range snap.Files {
 					d.changes = append(d.changes, adapter.Change{Kind: "file", Target: f.Path, Action: "restore"})
@@ -257,6 +274,25 @@ func (m Model) execute(p pending) (tea.Model, tea.Cmd) {
 		m.toast(1, "%s forgot its %s account", p.profile, m.scope(p.only))
 		cmd := m.loadStatus()
 		return m, cmd
+
+	case actQuit:
+		return m.syncActive(), tea.Quit
+
+	case actFolder:
+		path, err := mgr.InitFolder(m.opts.Dir, p.profile, nil, dry)
+		if err != nil {
+			m.toast(2, "%s", err.Error())
+			return m, nil
+		}
+		if dry {
+			res := opDoneMsg{title: "pick " + p.profile + " for this folder", dry: true,
+				changes: []adapter.Change{{Kind: "file", Target: path, Action: "write"}}}
+			m.result, m.modal = &res, modalResult
+			return m, nil
+		}
+		m.opts.Folder = &config.Folder{Profile: p.profile, Path: path}
+		m.toast(1, "this folder now uses %s", p.profile)
+		return m, nil
 	}
 	return m, nil
 }

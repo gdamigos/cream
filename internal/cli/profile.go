@@ -14,6 +14,7 @@ func newProfileCmd(a *App) *cobra.Command {
 	cmd := &cobra.Command{Use: "profile", Aliases: []string{"profiles", "p"}, Short: "Create, list, edit and remove profiles"}
 
 	var desc, gName, gEmail, gKey string
+	var withPassword bool
 	add := &cobra.Command{
 		Use:   "add <name>",
 		Short: "Create a profile",
@@ -31,9 +32,20 @@ func newProfileCmd(a *App) *cobra.Command {
 				a.printChanges([]adapter.Change{{Kind: "file", Target: m.Paths.ConfigFile() + " (profiles." + args[0] + ")", Action: "add"}})
 				return nil
 			}
+			pw := ""
+			if withPassword {
+				if pw, err = a.newPassword(); err != nil {
+					return err
+				}
+			}
 			p, err := m.AddProfile(args[0], desc, config.GitIdentity{Name: gName, Email: gEmail, SigningKey: gKey})
 			if err != nil {
 				return err
+			}
+			if pw != "" {
+				if _, err := m.SetPassword(cmd.Context(), p.Name, "", pw, false); err != nil {
+					return err
+				}
 			}
 			a.printf("%s profile %s created\n", sOK.Render("✓"), sBold.Render(p.Name))
 			a.printf("%s\n", sDim.Render("  next: log in to your tools, then `cream import "+p.Name+"`"))
@@ -44,6 +56,7 @@ func newProfileCmd(a *App) *cobra.Command {
 	add.Flags().StringVar(&gName, "git-name", "", "git user.name for this profile")
 	add.Flags().StringVar(&gEmail, "git-email", "", "git user.email for this profile")
 	add.Flags().StringVar(&gKey, "signing-key", "", "git user.signingkey for this profile")
+	add.Flags().BoolVar(&withPassword, "password", false, "ask for a password that protects the profile")
 
 	set := &cobra.Command{
 		Use:   "set <name>",
@@ -54,41 +67,39 @@ func newProfileCmd(a *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			p, err := m.Cfg.Profile(args[0])
-			if err != nil {
-				return err
-			}
 			f := cmd.Flags()
-			if f.Changed("description") {
-				p.Description = desc
-			}
-			if f.Changed("git-name") {
-				p.Git.Name = gName
-			}
-			if f.Changed("git-email") {
-				p.Git.Email = gEmail
-			}
-			if f.Changed("signing-key") {
-				p.Git.SigningKey = gKey
+			apply := func(p *config.Profile) {
+				if f.Changed("description") {
+					p.Description = desc
+				}
+				if f.Changed("git-name") {
+					p.Git.Name = gName
+				}
+				if f.Changed("git-email") {
+					p.Git.Email = gEmail
+				}
+				if f.Changed("signing-key") {
+					p.Git.SigningKey = gKey
+				}
 			}
 			a.dryBanner()
-			changes, err := m.SyncGit(true)
-			if err != nil {
-				return err
-			}
 			if a.DryRun {
+				var p *config.Profile
+				if err := a.withPasswords(m, func() (err error) { p, err = m.Profile(args[0]); return err }); err != nil {
+					return err
+				}
+				apply(p)
+				changes, err := m.SyncGit(true)
+				if err != nil {
+					return err
+				}
 				a.printChanges(append([]adapter.Change{{Kind: "file", Target: m.Paths.ConfigFile(), Action: "patch"}}, onlyIncludeFiles(changes, p.Name)...))
 				return nil
 			}
-			if err := m.Save(); err != nil {
+			if err := a.withPasswords(m, func() error { return m.EditProfile(args[0], apply) }); err != nil {
 				return err
 			}
-			if len(p.Rules) > 0 {
-				if _, err := m.SyncGit(false); err != nil {
-					return err
-				}
-			}
-			a.printf("%s profile %s updated\n", sOK.Render("✓"), sBold.Render(p.Name))
+			a.printf("%s profile %s updated\n", sOK.Render("✓"), sBold.Render(args[0]))
 			return nil
 		},
 	}
@@ -116,6 +127,10 @@ func newProfileCmd(a *App) *cobra.Command {
 				if n == m.Cfg.Active {
 					mark = sOK.Render("● ")
 				}
+				if p.Protected() {
+					a.printf("%s%s %s\n", mark, sBold.Render(n), sDim.Render("(password protected)"))
+					continue
+				}
 				a.printf("%s%s %s\n", mark, sBold.Render(n), sDim.Render(p.Description))
 				for _, ad := range m.Adapters {
 					if acct := p.Accounts[ad.ID()]; acct != nil {
@@ -134,7 +149,7 @@ func newProfileCmd(a *App) *cobra.Command {
 		},
 	}
 
-	var yes bool
+	var yes, forgot bool
 	rm := &cobra.Command{
 		Use:     "remove <name>",
 		Aliases: []string{"rm", "delete"},
@@ -161,7 +176,12 @@ func newProfileCmd(a *App) *cobra.Command {
 			if !yes {
 				return errors.New("this deletes the profile's saved credentials; re-run with --yes to confirm")
 			}
-			if err := m.RemoveProfile(args[0]); err != nil {
+			if forgot {
+				err = m.RemoveProfileWithoutPassword(args[0])
+			} else {
+				err = a.withPasswords(m, func() error { return m.RemoveProfile(args[0]) })
+			}
+			if err != nil {
 				return err
 			}
 			a.printf("%s profile %s removed\n", sOK.Render("✓"), sBold.Render(args[0]))
@@ -169,6 +189,7 @@ func newProfileCmd(a *App) *cobra.Command {
 		},
 	}
 	rm.Flags().BoolVarP(&yes, "yes", "y", false, "confirm deletion")
+	rm.Flags().BoolVar(&forgot, "forgot-password", false, "delete a protected profile without its password, its saved data is lost")
 
 	var forgetOnly string
 	var forgetYes bool
@@ -191,7 +212,8 @@ func newProfileCmd(a *App) *cobra.Command {
 			if !a.DryRun && !forgetYes {
 				return errors.New("this deletes saved credentials; re-run with --yes to confirm")
 			}
-			changes, err := m.Forget(args[0], only, a.DryRun)
+			var changes []adapter.Change
+			err = a.withPasswords(m, func() (err error) { changes, err = m.Forget(args[0], only, a.DryRun); return err })
 			if err != nil {
 				return err
 			}
@@ -206,7 +228,7 @@ func newProfileCmd(a *App) *cobra.Command {
 	forget.Flags().StringVar(&forgetOnly, "only", "", "comma-separated adapters (claude,codex,github,gitlab,git)")
 	forget.Flags().BoolVarP(&forgetYes, "yes", "y", false, "confirm deletion")
 
-	cmd.AddCommand(add, set, list, rm, forget)
+	cmd.AddCommand(add, set, list, rm, forget, newPasswordCmd(a))
 	return cmd
 }
 

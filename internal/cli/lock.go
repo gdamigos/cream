@@ -39,10 +39,10 @@ It is a guardrail against mistakes, not a security boundary.`,
 			var evs []core.Event
 			if lock {
 				a.printf("%s %s\n", sTitle.Render("Locking"), sBold.Render(what))
-				evs, err = m.Lock(cmd.Context(), profile, a.DryRun, nil)
+				err = a.withPasswords(m, func() (err error) { evs, err = m.Lock(cmd.Context(), profile, a.DryRun, nil); return err })
 			} else {
 				a.printf("%s %s\n", sTitle.Render("Unlocking"), sBold.Render(what))
-				evs, err = m.Unlock(cmd.Context(), profile, a.DryRun, nil)
+				err = a.withPasswords(m, func() (err error) { evs, err = m.Unlock(cmd.Context(), profile, a.DryRun, nil); return err })
 			}
 			a.printEvents(evs)
 			if err == nil && !a.DryRun {

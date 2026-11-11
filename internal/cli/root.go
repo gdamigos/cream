@@ -32,6 +32,8 @@ type App struct {
 	Open          func() (*core.Manager, error)
 	// injected by main to avoid an import cycle with tui
 	RunTUI func(*App, *core.Manager) error
+	// asks for a profile password, nil reads CREAM_PROFILE_PASSWORD or the terminal
+	ReadPassword func(prompt string) (string, error)
 
 	mgr *core.Manager
 }
@@ -125,6 +127,9 @@ Run without arguments to open the full-screen TUI.`,
 		newImportCmd(a),
 		newUseCmd(a),
 		newRunCmd(a),
+		newInitCmd(a),
+		newHookCmd(a),
+		newPromptCmd(a),
 		newLockCmd(a, true),
 		newLockCmd(a, false),
 		newStatusCmd(a),

@@ -71,6 +71,9 @@ type Profile struct {
 	Git         GitIdentity         `toml:"git"`
 	Rules       []Rule              `toml:"rules,omitempty"`
 	Accounts    map[string]*Account `toml:"accounts,omitempty"`
+	Password    *Protection         `toml:"password,omitempty"` // see protect.go
+
+	open bool // a protected profile's fields are decrypted in memory
 }
 
 type GitIdentity struct {
@@ -137,6 +140,13 @@ func Load(path string) (*Config, error) {
 		if p.Accounts == nil {
 			p.Accounts = map[string]*Account{}
 		}
+		// only the active profile is stored readable, an empty one with sealed data stays sealed
+		if p.Password != nil {
+			p.open = name == c.Active && (p.hasPlain() || p.Password.Sealed == "")
+			if !p.open {
+				p.Description, p.Git, p.Rules, p.Accounts = "", GitIdentity{}, nil, map[string]*Account{}
+			}
+		}
 	}
 	if c.Vault.Backend == "" {
 		c.Vault.Backend = "auto"
@@ -147,7 +157,11 @@ func Load(path string) (*Config, error) {
 func (c *Config) Save(path string) error {
 	var buf bytes.Buffer
 	buf.WriteString("# CRE.A.M configuration. No secrets are stored in this file.\n")
-	if err := toml.NewEncoder(&buf).Encode(c); err != nil {
+	disk, err := c.forDisk()
+	if err != nil {
+		return err
+	}
+	if err := toml.NewEncoder(&buf).Encode(disk); err != nil {
 		return err
 	}
 	return fsutil.WriteFileAtomic(path, buf.Bytes(), 0o600)

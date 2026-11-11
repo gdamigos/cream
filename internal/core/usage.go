@@ -40,7 +40,7 @@ func (m *Manager) Usage(ctx context.Context, c *usage.Checker, cachedOnly bool) 
 	var out []Usage
 	for _, name := range m.Cfg.Names() {
 		p := m.Cfg.Profiles[name]
-		if m.Cfg.Locked(name) {
+		if m.Cfg.Locked(name) || p.Protected() {
 			continue
 		}
 		for _, a := range m.Adapters {

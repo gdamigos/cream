@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"slices"
@@ -26,6 +27,8 @@ type Options struct {
 	UpdateCheck bool
 	Checker     *update.Checker
 	SkipIntro   bool
+	Dir         string         // the folder cream was opened in, f writes its .cream here
+	Folder      *config.Folder // the .cream that applies to Dir
 }
 
 func Run(m *core.Manager, o Options) error {
@@ -69,6 +72,8 @@ const (
 	actForget
 	actLock
 	actUnlock
+	actFolder
+	actQuit
 )
 
 // how often tool state is re-read so logins made in other terminals show up
@@ -90,6 +95,7 @@ const (
 	formNewProfile formKind = iota
 	formEditProfile
 	formRule
+	formPassword
 )
 
 // lives on the heap so huh keeps valid pointers when the model is copied
@@ -98,6 +104,8 @@ type formData struct {
 	profile                     string
 	name, desc, gName, gEmail   string
 	gKey, ruleKind, rulePattern string
+	pw, pwAgain                 string
+	removePw                    bool
 }
 
 type step struct {
@@ -132,6 +140,7 @@ type opDoneMsg struct {
 	changes []adapter.Change
 	events  []core.Event
 	dry     bool
+	again   *pending // runs again once a password it asked for is entered
 }
 type previewMsg struct {
 	p   pending
@@ -182,6 +191,7 @@ type Model struct {
 	runOpts    []runChoice
 	runCursor  int
 	result     *opDoneMsg
+	afterPw    func(Model) (tea.Model, tea.Cmd) // what the password window unlocks, see password.go
 
 	toasts  []toast
 	upd     *update.Result
@@ -209,12 +219,24 @@ func New(m *core.Manager, o Options) Model {
 		// Init starts the first status read on a copy
 		statusLoads: 1,
 	}
+	start := m.Cfg.Active
+	if o.Folder != nil {
+		start = o.Folder.Profile
+	}
 	for i, n := range m.Cfg.Names() {
-		if n == m.Cfg.Active {
+		if n == start {
 			md.cursor = i
 		}
 	}
 	return md
+}
+
+// the profile the folder's .cream picks, empty when there is none
+func (m Model) folderProfile() string {
+	if m.opts.Folder == nil {
+		return ""
+	}
+	return m.opts.Folder.Profile
 }
 
 func (m Model) Init() tea.Cmd {
@@ -235,6 +257,14 @@ func poll() tea.Cmd {
 
 // re-reads config.toml if another cream changed it, then the live tool state
 func (m Model) refresh() (Model, tea.Cmd) {
+	// the .cream may have been added, changed or removed since, a broken one counts as none
+	if m.opts.Dir != "" {
+		f, err := m.mgr.Folder(m.opts.Dir)
+		if err != nil {
+			f = nil
+		}
+		m.opts.Folder = f
+	}
 	if m.busy || m.modal != modalNone || m.statusLoads > 0 {
 		return m, nil
 	}
@@ -435,6 +465,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case opDoneMsg:
 		m.busy, m.opCh = false, nil
+		var pr core.PasswordRequired
+		if errors.As(msg.err, &pr) && msg.again != nil {
+			again := *msg.again
+			return m.openPasswordForm(pr.Profile, func(m Model) (tea.Model, tea.Cmd) { return m.execute(again) })
+		}
+		m.mgr.Reseal()
 		cmds := []tea.Cmd{m.loadStatus(), m.loadBackups(), m.bar.SetPercent(1)}
 		if msg.err != nil {
 			m.toast(2, "%s", firstLine(msg.err.Error()))
@@ -448,6 +484,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case execDoneMsg:
+		m.mgr.Reseal()
 		if msg.err != nil {
 			m.toast(2, "%s: %s", msg.label, msg.err.Error())
 		} else {
@@ -559,6 +596,9 @@ func (m Model) allRules() []ruleRef {
 	var out []ruleRef
 	for _, n := range m.names() {
 		p := m.mgr.Cfg.Profiles[n]
+		if p.Protected() {
+			continue
+		}
 		for i, r := range p.Rules {
 			out = append(out, ruleRef{n, i, r, p.Git.Email})
 		}

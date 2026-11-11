@@ -35,8 +35,9 @@ Run `cream` with no arguments.
 | `→` then `x` | on the Status tab, pick one tool and forget the account the profile saved for it |
 | `r` | run Claude Code, Codex, gh, glab or a shell as the profile, in this terminal only |
 | `i` | save the accounts you are logged in to now into the profile |
-| `n` `e` `x` | new, edit or delete a profile (deleting also removes its saved logins) |
+| `n` `e` `x` | new, edit or delete a profile (deleting also removes its saved logins). The form also sets, changes or removes a [password](#password-protected-profiles). |
 | `a` | add a git identity rule (remote host or folder) |
+| `f` | pick the selected profile for the folder you opened cream in, like [`cream init`](#a-profile-per-folder) |
 | `L` / `ctrl+l` | lock or unlock the selected profile / everything |
 | `S` | with the [usage check](#usage-and-stale-logins) on, switch a tool that hit its plan limit to the profile with the most room left (shows a preview first) |
 | `U` | when a new version is out: the update command for how you installed cream (Scoop, Homebrew, `.deb`, `go install`), to copy, or the release page to open |
@@ -53,14 +54,18 @@ Every command accepts `--dry-run` (`-n`) and `--no-update-check`.
 
 ```text
 cream                                   open the UI (prints the status when not in a terminal)
-cream profile add <name> [--git-name … --git-email … --signing-key … -d …]
+cream profile add <name> [--git-name … --git-email … --signing-key … -d … --password]
 cream profile set <name> [--git-name … --git-email … --signing-key … -d …]
+cream profile password <name> [--remove]   set, change or remove a profile's password
 cream profile list
-cream profile remove <name> --yes       also deletes its saved logins
+cream profile remove <name> --yes [--forgot-password]   also deletes its saved logins
 cream profile forget <name> --only claude[,…] --yes   drop saved logins, keep the profile
 cream import <profile> [--only claude,codex,github,gitlab,git] [--gitlab-host HOST]
-cream use <profile> [--only …]          switch every tool
-cream run <profile> <command> [args…]   run one tool as a profile, this terminal only
+cream use [profile] [--only …]          switch every tool (no profile: the folder's .cream picks it)
+cream run [profile] <command> [args…]   run one tool as a profile, this terminal only
+cream init [profile] [--only …] [--force]   pick a profile for this folder (writes .cream)
+cream hook bash|zsh|fish|pwsh           shell functions that run claude, codex, gh and glab as the folder's profile
+cream prompt                            the profile in use, for your shell prompt
 cream lock [profile]                    log tools out on purpose and turn git identity off
 cream unlock [profile]                  put everything back
 cream status [--json]                   who is logged in to each tool
@@ -92,6 +97,54 @@ cream use work --only github,gitlab,git
 - `cream use work` changes every tool's login files, so every new terminal and editor uses `work`.
 - `cream run work claude` starts only that program as `work` and leaves everything else alone, so two accounts can run side by side. Put `--` before a command with its own flags: `cream run personal -- gh pr list`.
 
+## A profile per folder
+
+`cream init work` writes a `.cream` file into the current folder:
+
+```toml
+profile = "work"
+only = ["claude", "codex"]   # optional, the tools `cream use` switches here
+```
+
+In that folder and every folder below it (the nearest `.cream` wins):
+
+- `cream use` with no profile switches to `work`. `--only` on the command line replaces the file's `only`.
+- `cream run claude` runs as `work`. A profile named first still wins: `cream run personal claude`. If a command has the same name as a profile, start with `--`: `cream run -- work`.
+- `cream` opens the UI with `work` selected and shows it in the header, and `enter` switches it with the file's `only`.
+- `cream doctor` warns when the file names a profile or tool that doesn't exist, and tells you when it isn't the active profile.
+
+In the UI, `f` writes the file for the selected profile. Without a profile, `cream init` uses the active one. Add `--force` to replace an existing file. On Windows the file is hidden, like `.git`. Commit it to share it with your team, or add `.cream` to `.gitignore` to keep it to yourself. It only picks a profile and never switches anything by itself.
+
+### Tools that follow the folder
+
+`cream hook` prints `claude`, `codex`, `gh` and `glab` shell functions. Under a `.cream` folder whose profile isn't the active one they run through `cream run`, in that terminal only. Everywhere else they run as usual. Add one line to your shell's startup file:
+
+```sh
+eval "$(cream hook bash)"                            # ~/.bashrc (zsh: cream hook zsh in ~/.zshrc)
+cream hook fish | source                             # ~/.config/fish/config.fish
+cream hook pwsh | Out-String | Invoke-Expression     # $PROFILE
+```
+
+The functions leave git alone, since your git identity already follows [rules](HOW_IT_WORKS.md).
+
+`cream prompt` prints the profile in use in this terminal (the `cream run` one, otherwise the active one), with a `*` when the nearest `.cream` picks a different profile, for example `personal*`. It only reads files, so it's fast enough for every prompt. In starship:
+
+```toml
+[custom.cream]
+command = "cream prompt"
+when = true
+```
+
+## Password protected profiles
+
+When several people share one computer, each can protect their profile with a password: `cream profile password alice`, `--password` on `profile add`, or the password fields in the `n` and `e` forms. It needs at least 8 characters.
+
+A protected profile shows only its name. Its accounts, git identity, rules and description are encrypted, and the UI, `profile list`, `rule list`, `status` and `doctor` show nothing about them. Switching to it, `cream run`, import, edit, forget, lock, unlock, delete and restoring its backups all ask for the password, every time. Switching away from it needs no password.
+
+While it is the active profile its logins are live in the tools, like any other profile. When you switch away, its git rules leave `~/.gitconfig` and its gh account is logged out of gh until you switch back. Switch every tool when you leave it, since `--only` leaves the other tools logged in.
+
+Outside a terminal, set `CREAM_PROFILE_PASSWORD`. A forgotten password can't be recovered: `cream profile remove <name> --yes --forgot-password` deletes the profile and its saved data.
+
 ## Usage and stale logins
 
 A saved login that hasn't been refreshed for 30 days may have expired, so `cream status`, `cream doctor` and the profile card in the UI warn about it. Switch to the profile and run the tool once, or log in again and `cream import`. The active profile is skipped, its tools refresh their own logins. Change the number of days with [`stale_login_days`](CONFIGURATION.md).
@@ -100,7 +153,7 @@ With `usage_check = true`, cream also asks Anthropic and OpenAI how much of thei
 
 ## Doctor
 
-`cream doctor` checks that each tool is logged in as the active profile expects, that every saved account is still in the vault and that `~/.gitconfig` matches your rules. Run it inside a git repo and it also tells you which profile owns the repo, whether commits here use that profile's email, and whether any commits you haven't pushed yet carry the wrong one. Every problem comes with a fix. It changes nothing and exits with `1` when something is broken.
+`cream doctor` checks that each tool is logged in as the active profile expects, that every saved account is still in the vault and that `~/.gitconfig` matches your rules. Run it inside a git repo and it also tells you which profile owns the repo, whether commits here use that profile's email, and whether any commits you haven't pushed yet carry the wrong one. It also checks the folder's [`.cream`](#a-profile-per-folder). Every problem comes with a fix. It changes nothing and exits with `1` when something is broken.
 
 ## Lock mode
 
@@ -112,7 +165,7 @@ It's a guardrail against mistakes, not a security boundary, and sessions that ar
 
 ## Undo
 
-Every switch saves an encrypted backup first. `cream restore` goes back to the latest one, or `cream restore <id>` to one from `cream backups`. A restore can be undone too.
+Every switch saves an encrypted backup first. `cream restore` goes back to the latest one, or `cream restore <id>` to one from `cream backups`. A restore can be undone too. While cream is locked, `cream unlock` is the undo instead.
 
 ## Good to know
 

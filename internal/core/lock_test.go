@@ -88,6 +88,39 @@ func TestLockEverything(t *testing.T) {
 	}
 }
 
+func TestRestoreRespectsLocks(t *testing.T) {
+	m := lockSetup(t, []adapter.Adapter{adapters.Claude{}, adapters.GitIdentity{}})
+	if _, err := m.Use(ctx, "personal", UseOptions{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Lock(ctx, "", false, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Restore(ctx, "", false); err == nil || !strings.Contains(err.Error(), "cream unlock") {
+		t.Fatalf("restore while locked: %v", err)
+	}
+	if fsutil.Exists(claudeCred(m)) {
+		t.Fatal("restore logged a tool back in behind the lock")
+	}
+	if _, err := m.Unlock(ctx, "", false, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// the backup of the unlock still has work's rule turned off, work isn't locked anymore
+	if _, err := m.Lock(ctx, "work", false, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Unlock(ctx, "work", false, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Restore(ctx, "", false); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(m.gitconfig(t), "gitlab.corp") {
+		t.Fatalf("restore brought back an old git block:\n%s", m.gitconfig(t))
+	}
+}
+
 func TestLockOneProfileThenUseAnother(t *testing.T) {
 	m := lockSetup(t, []adapter.Adapter{adapters.Claude{}, adapters.GitIdentity{}})
 	loginClaude(t, m, "me@home", "HOME1")

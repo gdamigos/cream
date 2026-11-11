@@ -16,8 +16,8 @@ func newDoctorCmd(a *App) *cobra.Command {
 		Long: `Check that each tool is set up and logged in as the active profile expects,
 that every saved account is still in the vault, that the managed ~/.gitconfig
 block is up to date, and, inside a git repo, that commits here use the email of
-the profile that owns the repo. Read only, and exits with 1 when something is
-broken.`,
+the profile that owns the repo, and that a .cream file here names a real
+profile. Read only, and exits with 1 when something is broken.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			m, err := a.Manager()
@@ -26,7 +26,7 @@ broken.`,
 			}
 			dir, _ := os.Getwd()
 			checks := m.Doctor(cmd.Context(), dir)
-			titles := map[string]string{"tools": "Tools", "accounts": "Saved accounts", "git": "Git", "repo": "This repo"}
+			titles := map[string]string{"tools": "Tools", "accounts": "Saved accounts", "git": "Git", "repo": "This repo", "folder": "This folder"}
 			failed, area := 0, ""
 			for _, c := range checks {
 				if c.Area != area {
