@@ -37,6 +37,11 @@ func lockLabel(profile string) string {
 
 // logs the tools out on purpose and turns git identity off, an empty profile means everything
 func (m *Manager) Lock(ctx context.Context, profile string, dryRun bool, progress Progress) ([]Event, error) {
+	release, err := m.exclusive(dryRun)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	if m.Cfg.Lock.All {
 		return nil, errors.New("everything is already locked (run `cream unlock`)")
 	}
@@ -176,6 +181,11 @@ func gitEvent(ch []adapter.Change, err error, msg string) Event {
 // puts the saved logins back, an empty profile unlocks everything including locked profiles
 // a failure stops here and keeps the lock, running unlock again retries what is left
 func (m *Manager) Unlock(ctx context.Context, profile string, dryRun bool, progress Progress) ([]Event, error) {
+	release, err := m.exclusive(dryRun)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	var scopes []string
 	if profile == "" {
 		if !m.Cfg.AnyLocked() {

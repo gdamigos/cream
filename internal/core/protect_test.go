@@ -277,6 +277,10 @@ func TestSessionDropsTokenCopiesOfProtected(t *testing.T) {
 	if fileExists(cred) {
 		t.Fatal("session token copy stayed on disk")
 	}
+	state := filepath.Join(m.Paths.SessionDir("alice", "claude"), ".claude.json")
+	if s := get(t, state); s == "" || strings.Contains(s, "alice@example.com") {
+		t.Fatalf("session state should stay without the account: %q", s)
+	}
 }
 
 func fileExists(p string) bool {

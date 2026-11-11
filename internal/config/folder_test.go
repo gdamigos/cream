@@ -28,12 +28,22 @@ func TestFindFolderWalksUp(t *testing.T) {
 		t.Fatalf("f = %+v", f)
 	}
 
-	// the nearest file wins
-	if _, err := WriteFolder(filepath.Join(root, "a"), Folder{Profile: "personal"}); err != nil {
-		t.Fatal(err)
+	// the nearest file wins, and replacing a hidden file works
+	for range 2 {
+		if _, err := WriteFolder(filepath.Join(root, "a"), Folder{Profile: "personal"}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if f, _ := FindFolder(deep); f.Profile != "personal" || f.Only != nil {
 		t.Fatalf("nearest = %+v", f)
+	}
+
+	// a folder named .cream is skipped
+	if err := os.MkdirAll(filepath.Join(deep, FolderFile), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if f, err := FindFolder(deep); err != nil || f == nil || f.Profile != "personal" {
+		t.Fatalf("with a .cream folder: f=%v err=%v", f, err)
 	}
 }
 

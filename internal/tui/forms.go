@@ -171,16 +171,10 @@ func (m Model) submitForm() (tea.Model, tea.Cmd) {
 			m.result, m.modal = &res, modalResult
 			return m, nil
 		}
-		p.Description, p.Git = strings.TrimSpace(fd.desc), git
-		if err := m.mgr.Save(); err != nil {
+		err = m.mgr.EditProfile(p.Name, func(p *config.Profile) { p.Description, p.Git = strings.TrimSpace(fd.desc), git })
+		if err != nil {
 			m.toast(2, "%s", err.Error())
 			return m, nil
-		}
-		if len(p.Rules) > 0 {
-			if _, err := m.mgr.SyncGit(false); err != nil {
-				m.toast(2, "%s", err.Error())
-				return m, nil
-			}
 		}
 		switch {
 		case fd.removePw:

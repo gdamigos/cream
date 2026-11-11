@@ -30,12 +30,15 @@ func FindFolder(dir string) (*Folder, error) {
 	}
 	for {
 		path := filepath.Join(dir, FolderFile)
-		b, err := os.ReadFile(path)
-		switch {
-		case err == nil:
+		// a folder that happens to be called .cream isn't one
+		if fi, err := os.Stat(path); err == nil && !fi.IsDir() {
+			b, err := os.ReadFile(path)
+			if err != nil {
+				return nil, err
+			}
 			return parseFolder(path, b)
-		case !errors.Is(err, fs.ErrNotExist):
-			return nil, fmt.Errorf("read %s: %w", path, err)
+		} else if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return nil, err
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
@@ -63,5 +66,10 @@ func WriteFolder(dir string, f Folder) (string, error) {
 		return "", err
 	}
 	path := filepath.Join(dir, FolderFile)
-	return path, fsutil.WriteFileAtomic(path, buf.Bytes(), 0o644)
+	if err := fsutil.WriteFileAtomic(path, buf.Bytes(), 0o644); err != nil {
+		return path, err
+	}
+	// a file that fails to hide still works
+	_ = fsutil.Hide(path)
+	return path, nil
 }

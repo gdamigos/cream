@@ -77,6 +77,34 @@ func TestFileVaultEncryptedRoundTrip(t *testing.T) {
 	}
 }
 
+func TestFileVaultKeepsOtherProcessWrites(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "vault.age")
+	a, _ := NewFile(path, "correct horse", 10)
+	b, _ := NewFile(path, "correct horse", 10)
+	if err := a.Set("old", []byte("1")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Get("old"); err != nil {
+		t.Fatal(err)
+	}
+	// b loaded the file before a wrote again, like two cream processes
+	if err := a.Set("from-a", []byte("2")); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Set("from-b", []byte("3")); err != nil {
+		t.Fatal(err)
+	}
+	c, _ := NewFile(path, "correct horse", 10)
+	for _, k := range []string{"old", "from-a", "from-b"} {
+		if _, err := c.Get(k); err != nil {
+			t.Fatalf("%s lost: %v", k, err)
+		}
+	}
+	if got, err := a.Get("from-b"); err != nil || string(got) != "3" {
+		t.Fatalf("a doesn't see b's write: %q %v", got, err)
+	}
+}
+
 func TestOpenFileBackendFromEnv(t *testing.T) {
 	t.Setenv("CREAM_VAULT_PASSPHRASE", "pw")
 	v, err := Open(OpenOptions{Backend: "file", FilePath: filepath.Join(t.TempDir(), "v.age")})

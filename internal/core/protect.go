@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/gdamigos/cream/internal/adapter"
 	"github.com/gdamigos/cream/internal/config"
+	"github.com/gdamigos/cream/internal/fsutil"
 	"github.com/gdamigos/cream/internal/vault"
 )
 
@@ -168,6 +170,11 @@ func (m *Manager) secretKeys(name string) []string {
 
 // sets or changes the password, old is only needed for a change
 func (m *Manager) SetPassword(ctx context.Context, name, old, next string, dryRun bool) ([]adapter.Change, error) {
+	release, err := m.exclusive(dryRun)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	p, err := m.Cfg.Profile(name)
 	if err != nil {
 		return nil, err
@@ -229,6 +236,11 @@ func (m *Manager) SetPassword(ctx context.Context, name, old, next string, dryRu
 }
 
 func (m *Manager) RemovePassword(ctx context.Context, name, password string, dryRun bool) ([]adapter.Change, error) {
+	release, err := m.exclusive(dryRun)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	p, err := m.Cfg.Profile(name)
 	if err != nil {
 		return nil, err
@@ -341,10 +353,31 @@ func (m *Manager) unstashGitHub(ctx context.Context, p *config.Profile, dryRun b
 	return ch, err
 }
 
-// claude and codex sessions of cream run hold a plain copy of the token, a protected profile doesn't keep it
+// claude and codex sessions of cream run hold a plain copy of the token and the account, a protected profile keeps neither
 func (m *Manager) dropSessionTokens(profile string) {
+	dir := filepath.Join(m.Paths.CreamHome, "sessions", profile)
 	for _, f := range []string{filepath.Join("claude", ".credentials.json"), filepath.Join("codex", "auth.json")} {
-		_ = os.Remove(filepath.Join(m.Paths.CreamHome, "sessions", profile, f))
+		_ = os.Remove(filepath.Join(dir, f))
+	}
+	// the rest of claude's state stays, cream run puts the account back next time
+	state := filepath.Join(dir, "claude", ".claude.json")
+	b, ok, err := fsutil.ReadFileIfExists(state)
+	if err != nil || !ok {
+		return
+	}
+	var s map[string]json.RawMessage
+	if json.Unmarshal(b, &s) != nil {
+		_ = os.Remove(state)
+		return
+	}
+	if _, ok := s["oauthAccount"]; !ok {
+		return
+	}
+	delete(s, "oauthAccount")
+	if out, err := json.MarshalIndent(s, "", "  "); err == nil {
+		_ = fsutil.WriteFileAtomic(state, out, 0o600)
+	} else {
+		_ = os.Remove(state)
 	}
 }
 

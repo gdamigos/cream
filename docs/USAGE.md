@@ -113,7 +113,7 @@ In that folder and every folder below it (the nearest `.cream` wins):
 - `cream` opens the UI with `work` selected and shows it in the header, and `enter` switches it with the file's `only`.
 - `cream doctor` warns when the file names a profile or tool that doesn't exist, and tells you when it isn't the active profile.
 
-In the UI, `f` writes the file for the selected profile. Without a profile, `cream init` uses the active one. Add `--force` to replace an existing file. Commit it to share it with your team, or add `.cream` to `.gitignore` to keep it to yourself. It only picks a profile and never switches anything by itself.
+In the UI, `f` writes the file for the selected profile. Without a profile, `cream init` uses the active one. Add `--force` to replace an existing file. On Windows the file is hidden, like `.git`. Commit it to share it with your team, or add `.cream` to `.gitignore` to keep it to yourself. It only picks a profile and never switches anything by itself.
 
 ### Tools that follow the folder
 
@@ -165,7 +165,7 @@ It's a guardrail against mistakes, not a security boundary, and sessions that ar
 
 ## Undo
 
-Every switch saves an encrypted backup first. `cream restore` goes back to the latest one, or `cream restore <id>` to one from `cream backups`. A restore can be undone too.
+Every switch saves an encrypted backup first. `cream restore` goes back to the latest one, or `cream restore <id>` to one from `cream backups`. A restore can be undone too. While cream is locked, `cream unlock` is the undo instead.
 
 ## Good to know
 

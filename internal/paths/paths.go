@@ -46,6 +46,8 @@ func (p Paths) UsageCache() string { return filepath.Join(p.CreamHome, "usage.js
 
 func (p Paths) LogFile() string { return filepath.Join(p.CreamHome, "cream.log") }
 
+func (p Paths) LockFile() string { return filepath.Join(p.CreamHome, "cream.lock") }
+
 func (p Paths) InHome(elem ...string) string {
 	return filepath.Join(append([]string{p.Home}, elem...)...)
 }

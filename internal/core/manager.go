@@ -33,6 +33,10 @@ type Manager struct {
 	cfgStamp fileStamp
 	keys     map[string]*age.X25519Identity // protected profiles whose password was entered, see protect.go
 	kdfWork  int                            // scrypt work factor for passwords, 0 is age's default
+
+	lockMu     sync.Mutex // see exclusive.go
+	lockDepth  int
+	unlockFile func()
 }
 
 type fileStamp struct {
@@ -68,6 +72,8 @@ func Open(o Options) (*Manager, error) {
 			return nil, err
 		}
 	}
+	// stamped before reading, a write in between makes the next change reload instead of being missed
+	stamp := stampOf(p.ConfigFile())
 	cfg, err := config.Load(p.ConfigFile())
 	if err != nil {
 		return nil, err
@@ -98,7 +104,7 @@ func Open(o Options) (*Manager, error) {
 		Adapters: enabled,
 		all:      ads,
 		Backups:  &backup.Store{Dir: p.BackupDir(), Vault: v},
-		cfgStamp: stampOf(p.ConfigFile()),
+		cfgStamp: stamp,
 		keys:     map[string]*age.X25519Identity{},
 		kdfWork:  o.KDFWorkFactor,
 	}
@@ -196,6 +202,11 @@ func emit(p Progress, e Event) {
 }
 
 func (m *Manager) Import(ctx context.Context, profile string, only []string, dryRun bool, progress Progress) ([]Event, error) {
+	release, err := m.exclusive(dryRun)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	p, err := m.Profile(profile)
 	if err != nil {
 		return nil, err
@@ -263,6 +274,11 @@ type UseResult struct {
 
 // order is sync out, backup, activate, and rollback on any failure
 func (m *Manager) Use(ctx context.Context, profile string, o UseOptions, progress Progress) (*UseResult, error) {
+	release, err := m.exclusive(o.DryRun)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	p, err := m.Profile(profile)
 	if err != nil {
 		return nil, err
@@ -417,6 +433,11 @@ func (d *dedupVault) Set(key string, value []byte) error {
 
 // saves refreshed tokens of the active profile, e.g. before the user logs out of a tool elsewhere
 func (m *Manager) SyncActive(ctx context.Context) ([]string, error) {
+	release, err := m.exclusive(false)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	p := m.Cfg.Profiles[m.Cfg.Active]
 	if p == nil {
 		return nil, nil
@@ -445,6 +466,11 @@ func (m *Manager) Owners(adapterID, label string) []string {
 
 // drops saved accounts from a profile without touching the live logins, empty only means all of them
 func (m *Manager) Forget(profile string, only []string, dryRun bool) ([]adapter.Change, error) {
+	release, err := m.exclusive(dryRun)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	p, err := m.Profile(profile)
 	if err != nil {
 		return nil, err
@@ -536,9 +562,21 @@ func (m *Manager) rollback(snap *backup.Snapshot, ads []adapter.Adapter) error {
 
 // empty id means latest, the current state is backed up first so a restore can be undone
 func (m *Manager) Restore(ctx context.Context, id string, dryRun bool) (*backup.Snapshot, error) {
+	release, err := m.exclusive(dryRun)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	// restoring logins behind a lock would leave cream saying locked while the tools are logged in
+	if m.Cfg.Lock.All {
+		return nil, errors.New("cream is locked, unlocking is its undo (run `cream unlock` first)")
+	}
 	snap, err := m.Backups.Load(id)
 	if err != nil {
 		return nil, err
+	}
+	if snap.From != "" && m.Cfg.Locked(snap.From) {
+		return nil, fmt.Errorf("the backup goes back to %q, which is locked (run `cream unlock %s` first)", snap.From, snap.From)
 	}
 	// the restored logins make snap.From active, so a protected one needs its password like a switch
 	if snap.From != "" && m.Cfg.Profiles[snap.From] != nil {
@@ -582,6 +620,10 @@ func (m *Manager) Restore(ctx context.Context, id string, dryRun bool) (*backup.
 	}
 	if err := m.Save(); err != nil {
 		return snap, err
+	}
+	// the backup's ~/.gitconfig has the rules of back then, the block follows today's rules and locks
+	if _, err := m.SyncGit(false); err != nil {
+		return snap, fmt.Errorf("restored, but the git block couldn't be updated (run `cream use %s --only git`): %w", m.Cfg.Active, err)
 	}
 	m.Log("restore backup=%s active=%s", snap.ID, m.Cfg.Active)
 	return snap, nil
@@ -627,6 +669,11 @@ func (m *Manager) StatusFor(ctx context.Context, p *config.Profile) []AdapterSta
 }
 
 func (m *Manager) AddProfile(name, desc string, git config.GitIdentity) (*config.Profile, error) {
+	release, err := m.exclusive(false)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	p, err := m.Cfg.AddProfile(name, desc)
 	if err != nil {
 		return nil, err
@@ -640,6 +687,11 @@ func (m *Manager) AddProfile(name, desc string, git config.GitIdentity) (*config
 }
 
 func (m *Manager) RemoveProfile(name string) error {
+	release, err := m.exclusive(false)
+	if err != nil {
+		return err
+	}
+	defer release()
 	p, err := m.Profile(name)
 	if err != nil {
 		return err
@@ -647,8 +699,37 @@ func (m *Manager) RemoveProfile(name string) error {
 	return m.removeProfile(p)
 }
 
+// edits a profile and saves it, edit runs on the latest config.toml
+func (m *Manager) EditProfile(name string, edit func(*config.Profile)) error {
+	release, err := m.exclusive(false)
+	if err != nil {
+		return err
+	}
+	defer release()
+	p, err := m.Profile(name)
+	if err != nil {
+		return err
+	}
+	edit(p)
+	if err := m.Save(); err != nil {
+		return err
+	}
+	if len(p.Rules) > 0 {
+		if _, err := m.SyncGit(false); err != nil {
+			return err
+		}
+	}
+	m.Log("profile edit %s", name)
+	return nil
+}
+
 // for a protected profile whose password is lost, its encrypted data is gone either way
 func (m *Manager) RemoveProfileWithoutPassword(name string) error {
+	release, err := m.exclusive(false)
+	if err != nil {
+		return err
+	}
+	defer release()
 	p, err := m.Cfg.Profile(name)
 	if err != nil {
 		return err
@@ -688,6 +769,11 @@ func (m *Manager) removeProfile(p *config.Profile) error {
 }
 
 func (m *Manager) SyncGit(dryRun bool) ([]adapter.Change, error) {
+	release, err := m.exclusive(dryRun)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	var fallback *config.Profile
 	if p := m.Cfg.Profiles[m.Cfg.Active]; p != nil && !p.Git.IsZero() {
 		fallback = adapters.Fallback(m.Cfg, p)
@@ -696,6 +782,11 @@ func (m *Manager) SyncGit(dryRun bool) ([]adapter.Change, error) {
 }
 
 func (m *Manager) AddRule(profile string, r config.Rule, dryRun bool) ([]adapter.Change, error) {
+	release, err := m.exclusive(dryRun)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	p, err := m.Profile(profile)
 	if err != nil {
 		return nil, err
@@ -723,6 +814,11 @@ func (m *Manager) AddRule(profile string, r config.Rule, dryRun bool) ([]adapter
 }
 
 func (m *Manager) RemoveRule(profile string, idx int, dryRun bool) ([]adapter.Change, error) {
+	release, err := m.exclusive(dryRun)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	p, err := m.Profile(profile)
 	if err != nil {
 		return nil, err
@@ -777,6 +873,10 @@ func (m *Manager) SessionEnv(ctx context.Context, profile, tool string) (vars []
 	}
 	vars = append(vars, "CREAM_PROFILE="+p.Name)
 	finish = func() {
+		// refreshed tokens may rotate the old ones, so they are saved even when the lock can't be had
+		if release, err := m.exclusive(false); err == nil {
+			defer release()
+		}
 		for _, f := range finishers {
 			_ = f()
 		}

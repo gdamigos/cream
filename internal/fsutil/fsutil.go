@@ -2,6 +2,7 @@ package fsutil
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -61,6 +62,15 @@ func ReadFileIfExists(path string) ([]byte, bool, error) {
 func Exists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// size and mtime, so a reader notices when another process rewrote the file, empty when it is missing
+func Stamp(path string) string {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprint(fi.Size(), fi.ModTime().UnixNano())
 }
 
 func RemoveIfExists(path string) error {

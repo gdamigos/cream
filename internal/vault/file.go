@@ -22,6 +22,7 @@ type File struct {
 
 	mu     sync.Mutex
 	loaded bool
+	stamp  string // size and mtime of the file as last read or written
 	m      map[string][]byte
 }
 
@@ -34,11 +35,14 @@ func NewFile(path, passphrase string, workFactor int) (*File, error) {
 
 func (*File) Backend() string { return "file" }
 
+// reads the file again when another cream process wrote it, so a write never drops its entries
 func (f *File) load() error {
-	if f.loaded {
+	if f.loaded && fsutil.Stamp(f.path) == f.stamp {
 		return nil
 	}
 	f.m = map[string][]byte{}
+	// stamped before reading for the same reason as config.toml in core.Open
+	stamp := fsutil.Stamp(f.path)
 	raw, ok, err := fsutil.ReadFileIfExists(f.path)
 	if err != nil {
 		return err
@@ -60,7 +64,7 @@ func (f *File) load() error {
 			return fmt.Errorf("vault %s: %w", f.path, err)
 		}
 	}
-	f.loaded = true
+	f.loaded, f.stamp = true, stamp
 	return nil
 }
 
@@ -90,7 +94,11 @@ func (f *File) save() error {
 	if err := fsutil.WriteFileAtomic(f.path, out.Bytes(), 0o600); err != nil {
 		return err
 	}
-	return os.Chmod(f.path, 0o600)
+	if err := os.Chmod(f.path, 0o600); err != nil {
+		return err
+	}
+	f.stamp = fsutil.Stamp(f.path)
+	return nil
 }
 
 func (f *File) Get(key string) ([]byte, error) {

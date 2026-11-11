@@ -67,41 +67,39 @@ func newProfileCmd(a *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			var p *config.Profile
-			if err := a.withPasswords(m, func() (err error) { p, err = m.Profile(args[0]); return err }); err != nil {
-				return err
-			}
 			f := cmd.Flags()
-			if f.Changed("description") {
-				p.Description = desc
-			}
-			if f.Changed("git-name") {
-				p.Git.Name = gName
-			}
-			if f.Changed("git-email") {
-				p.Git.Email = gEmail
-			}
-			if f.Changed("signing-key") {
-				p.Git.SigningKey = gKey
+			apply := func(p *config.Profile) {
+				if f.Changed("description") {
+					p.Description = desc
+				}
+				if f.Changed("git-name") {
+					p.Git.Name = gName
+				}
+				if f.Changed("git-email") {
+					p.Git.Email = gEmail
+				}
+				if f.Changed("signing-key") {
+					p.Git.SigningKey = gKey
+				}
 			}
 			a.dryBanner()
-			changes, err := m.SyncGit(true)
-			if err != nil {
-				return err
-			}
 			if a.DryRun {
+				var p *config.Profile
+				if err := a.withPasswords(m, func() (err error) { p, err = m.Profile(args[0]); return err }); err != nil {
+					return err
+				}
+				apply(p)
+				changes, err := m.SyncGit(true)
+				if err != nil {
+					return err
+				}
 				a.printChanges(append([]adapter.Change{{Kind: "file", Target: m.Paths.ConfigFile(), Action: "patch"}}, onlyIncludeFiles(changes, p.Name)...))
 				return nil
 			}
-			if err := m.Save(); err != nil {
+			if err := a.withPasswords(m, func() error { return m.EditProfile(args[0], apply) }); err != nil {
 				return err
 			}
-			if len(p.Rules) > 0 {
-				if _, err := m.SyncGit(false); err != nil {
-					return err
-				}
-			}
-			a.printf("%s profile %s updated\n", sOK.Render("✓"), sBold.Render(p.Name))
+			a.printf("%s profile %s updated\n", sOK.Render("✓"), sBold.Render(args[0]))
 			return nil
 		},
 	}
