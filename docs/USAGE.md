@@ -44,6 +44,7 @@ Run `cream` with no arguments.
 | `u` | undo the last switch |
 | `tab` or `1` to `3` | Status, Rules and Backups tabs. Left and right move between the profile list and the tab. |
 | `D` | dry-run mode: every action only shows what it would change |
+| `s` | settings: the adapters and the [`config.toml` settings](CONFIGURATION.md), except the vault backend |
 | `R` `?` `q` | refresh now, help, quit |
 
 The UI refreshes itself every few seconds and when its terminal gets focus, so logins you make in another terminal show up. `CREAM_NO_INTRO=1` skips the intro. Outside a terminal, `cream` prints the status instead.

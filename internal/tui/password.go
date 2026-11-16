@@ -29,10 +29,7 @@ func (m Model) openPasswordForm(profile string, next func(Model) (tea.Model, tea
 	title := "Password for " + profile
 	fields := []huh.Field{huh.NewInput().Title(title).EchoMode(huh.EchoModePassword).Value(&fd.pw)}
 	m.fdata, m.formFields, m.formTitles, m.afterPw = fd, fields, []string{title}, next
-	m.form = huh.NewForm(huh.NewGroup(fields...).Title(profile + " is password protected")).
-		WithTheme(formTheme()).WithWidth(min(60, max(30, m.w-12)))
-	m.modal = modalForm
-	return m, m.form.Init()
+	return m, m.showForm(huh.NewGroup(fields...).Title(profile + " is password protected"))
 }
 
 func (m Model) submitPassword(fd *formData) (tea.Model, tea.Cmd) {

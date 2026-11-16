@@ -54,6 +54,8 @@ func (m Model) modalTitle() string {
 				return "editing " + m.fdata.profile
 			case formRule:
 				return "new rule for " + m.fdata.profile
+			case formSettings:
+				return "settings"
 			}
 		}
 	case modalRun:

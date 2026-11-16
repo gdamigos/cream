@@ -60,6 +60,7 @@ func (m Model) viewHelp() string {
 		{"tab  1-3", "status · rules · backups"},
 		{"→ / ←", "move between profiles and the list on the right"},
 		{"D", "toggle dry-run (preview changes only)"},
+		{"s", "settings (config.toml)"},
 		{"R", "refresh now (also automatic every few seconds)"},
 		{"q", "quit (asks first, q twice quits)"},
 	}

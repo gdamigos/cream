@@ -171,6 +171,8 @@ func (m Model) handleKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "U":
 		return m.openUpdate()
+	case "s":
+		return m.openSettings()
 	case "S":
 		return m.switchLimited()
 	case "L":
