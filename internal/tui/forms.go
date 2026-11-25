@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/gdamigos/cream/internal/adapter"
 	"github.com/gdamigos/cream/internal/config"
@@ -65,10 +66,7 @@ func (m Model) openProfileForm(kind formKind, p *config.Profile) (tea.Model, tea
 		title = "Edit " + p.Name
 	}
 	m.fdata, m.formFields, m.formTitles = fd, fields, titles
-	m.form = huh.NewForm(huh.NewGroup(fields...).Title(title)).
-		WithTheme(formTheme()).WithWidth(min(60, max(30, m.w-12))).WithShowHelp(true)
-	m.modal = modalForm
-	return m, m.form.Init()
+	return m, m.showForm(huh.NewGroup(fields...).Title(title))
 }
 
 func (m Model) openRuleForm(p *config.Profile) (tea.Model, tea.Cmd) {
@@ -89,10 +87,32 @@ func (m Model) openRuleForm(p *config.Profile) (tea.Model, tea.Cmd) {
 			}),
 	}
 	m.fdata, m.formFields, m.formTitles = fd, fields, []string{"Use " + p.Git.Email + " for repos", "Host or folder"}
-	m.form = huh.NewForm(huh.NewGroup(fields...).Title("New identity rule · " + p.Name)).
-		WithTheme(formTheme()).WithWidth(min(60, max(30, m.w-12)))
+	return m, m.showForm(huh.NewGroup(fields...).Title("New identity rule · " + p.Name))
+}
+
+// opens a one group form in a window
+func (m *Model) showForm(g *huh.Group) tea.Cmd {
+	m.formGroup = g
+	m.form = huh.NewForm(g).WithTheme(formTheme()).WithWidth(min(60, max(30, m.w-12)))
+	m.fitForm()
 	m.modal = modalForm
-	return m, m.form.Init()
+	return m.form.Init()
+}
+
+// caps the form at the terminal height, huh then scrolls the focused field into view
+func (m *Model) fitForm() {
+	if m.form == nil || m.formGroup == nil || m.h == 0 {
+		return
+	}
+	g := m.formGroup
+	need := lipgloss.Height(g.Header()) + lipgloss.Height(g.Content()) + lipgloss.Height(g.Footer())
+	// the window's border and padding take 4 lines, huh adds a blank line above the help
+	m.form = m.form.WithHeight(max(5, min(need, m.h-5)))
+	// huh only moves the scroll position on an update
+	next, _ := m.form.Update(tea.WindowSizeMsg{Width: m.w, Height: m.h})
+	if f, ok := next.(*huh.Form); ok {
+		m.form = f
+	}
 }
 
 func (m Model) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -127,6 +147,9 @@ func (m Model) submitForm() (tea.Model, tea.Cmd) {
 	fd := m.fdata
 	if fd.kind == formPassword {
 		return m.submitPassword(fd)
+	}
+	if fd.kind == formSettings {
+		return m.submitSettings(fd.set)
 	}
 	defer m.mgr.Reseal()
 	pw := fd.pw

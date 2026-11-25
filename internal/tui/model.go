@@ -96,6 +96,7 @@ const (
 	formEditProfile
 	formRule
 	formPassword
+	formSettings
 )
 
 // lives on the heap so huh keeps valid pointers when the model is copied
@@ -106,6 +107,7 @@ type formData struct {
 	gKey, ruleKind, rulePattern string
 	pw, pwAgain                 string
 	removePw                    bool
+	set                         settingsData
 }
 
 type step struct {
@@ -185,6 +187,7 @@ type Model struct {
 	modal      modalKind
 	pend       *pending
 	form       *huh.Form
+	formGroup  *huh.Group // the form's only group, see fitForm
 	fdata      *formData
 	formFields []huh.Field
 	formTitles []string
@@ -366,6 +369,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.bar.Width = max(10, min(40, m.w/3))
 		if m.form != nil {
 			m.form = m.form.WithWidth(min(60, m.w-10))
+			m.fitForm()
 		}
 		return m, nil
 

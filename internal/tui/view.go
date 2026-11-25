@@ -529,7 +529,7 @@ func (m Model) footerHints() []keyHint {
 	case m.focusRight && m.tab == tabBackups:
 		return m.enabledHints([]keyHint{{"↑↓", "select"}, {"enter", "restore"}, {"←", "profiles"}, {"tab", "view"}})
 	}
-	hints := []keyHint{{"enter", "switch"}, {"r", "run"}, {"i", "import"}, {"n", "new"}, {"e", "edit"}, {"x", "delete"}, {"a", "rule"}, {"L", "lock"}, {"u", "undo"}, {"D", "dry-run"}, {"tab", "view"}}
+	hints := []keyHint{{"enter", "switch"}, {"r", "run"}, {"i", "import"}, {"n", "new"}, {"e", "edit"}, {"x", "delete"}, {"a", "rule"}, {"L", "lock"}, {"u", "undo"}, {"D", "dry-run"}, {"s", "settings"}, {"tab", "view"}}
 	if len(m.suggest) > 0 {
 		hints = append([]keyHint{{"S", "switch " + m.suggest[0].Name + " to " + m.suggest[0].To}}, hints...)
 	}
